@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v3.0</span>
+  <span class="ver">v3.1</span>
 </header>
 
 <nav>
@@ -769,7 +769,7 @@ function heardHtml(a){
     const r = matchScore(a.en,a.heard);
     return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（AIの聞き取り）</div>`
       + r.marks.map(m=>`<span class="${m.cls}">${m.w}</span>`).join(" ")
-      + (r.extras.length?` <span class="miss">（こうも聞こえています: ${r.extras.join(" ")}）</span>`:"");
+      + (r.extras.length?` <div style="margin-top:6px;font-size:12px;color:var(--dim)">※ 聞き取りの別候補（判定には影響しません）: ${r.extras.join(" ")}</div>`:"");
   }
   if(a.srErr) return `<span class="miss">– 認識エラー(${a.srErr}) – 録音は再生できます。ネット接続を確認するか、Chromeで開いてください。</span>`;
   return `<span class="miss">– 認識できませんでした（録音は再生できます）–</span>`;
