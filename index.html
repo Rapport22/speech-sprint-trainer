@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.6</span>
+  <span class="ver">v2.7</span>
 </header>
 
 <nav>
@@ -287,7 +287,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 </div>
 <script>
 "use strict";
-/* AI判定サーバー（中継方式）。先生がデプロイ後、ここにURLを入れてGitHubへ反映すれば生徒は設定不要 */
+const AI_SERVER_DEFAULT = "https://sst-judge.eigohanaseru.workers.dev";
 /* ---------- 状態 ---------- */
 let phrases = [];
 let qQueue = [], qIdx = 0, answered = [], tLeft = 0, timerId = null, tStart = 0, tLimit = 0;
