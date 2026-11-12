@@ -162,7 +162,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v3.6</span>
+  <span class="ver">v3.7</span>
 </header>
 
 <nav>
@@ -630,7 +630,8 @@ function vadLoop(){
     if(level > VAD_ON){ onFrames = 0; vadState = "talking"; talkStart = Date.now(); }
   } else if(vadState === "talking"){
     /* 絶対安全網: 問題を表示してから90秒経ったら強制で次へ（無音問題・認識停止対策） */
-    if(Date.now()-qShownAt > 90000){ lastInterim=""; stopRec(); vadState = "processing"; return; }
+    if(Date.now()-qShownAt > 12000){ lastInterim=""; stopRec(); vadState = "processing"; return; }
+    if(!heardSomething && Date.now()-qShownAt > 2000){ lastInterim=""; stopRec(); vadState = "processing"; return; }
     /* 話しすぎキャップ */
     if(recActive && Date.now()-talkStart > VAD_MAX_MS){ stopRec(); vadState="processing"; return; }
     /* 主トリガー：認識エンジンが新しい言葉を受け付けなくなって1.5秒 → 確定して次へ
@@ -700,12 +701,12 @@ function judge(a){
 /* 語彙一致から一言アドバイスを生成（AI判定のfeedbackがあればそちらを優先） */
 function quickAdvice(a, r){
   if(a.ai && a.ai.feedback) return a.ai.feedback;
-  if(!a.heard) return "もう一度はっきり言ってみよう";
+  if(!a.heard) return "もう一回、声に出して！";
   if(r.ratio>=80) return "完璧！その調子";
   const missed = r.marks.filter(m=>m.cls==="miss").map(m=>m.w);
-  if(missed.length && r.ratio>=50) return `「${missed[0]}」が聞こえにくかったかも`;
-  if(r.extras.length) return `「${r.extras[0]}」と聞こえたら、言い直してみよう`;
-  return "ゆっくりはっきり言うと通じるよ";
+  if(missed.length) return `「${missed[0]}」が聞こえにくい`;
+  if(r.extras.length) return `「${r.extras[0]}」が聞こえにくい`;
+  return "もう一回言ってみよう";
 }
 function toast(text, cls, advice){
   const t = $("toast");
@@ -719,23 +720,24 @@ function toast(text, cls, advice){
 /* ---------- Gemini AI判定（中継サーバー優先・キー直はフォールバック） ---------- */
 async function aiJudge(a){
   const prompt =
-`You are an English pronunciation and speaking coach for Japanese learners. The student saw a Japanese prompt and answered in English. You received the speech-recognition transcript of their answer, and you must judge it as a COACH.
+`You are an English pronunciation and speaking coach for Japanese learners doing a SPEED-SPEAKING drill (they answer as fast as they can). The student saw a Japanese prompt and answered in English. You received the speech-recognition transcript, and you must judge it as a COACH.
 
 Japanese prompt: ${a.jp}
 Model answer (ONE example translation, not the only correct answer): ${a.en}
 Speech-recognition transcript (may contain recognition errors, e.g. similar-sounding words): ${a.heard || "(nothing recognized)"}
 
-Judge on TWO layers:
-1. Meaning: Does the answer convey the Japanese meaning? It does NOT need to match the model answer. Any natural, correct English that communicates the meaning passes. Ignore likely recognition errors (similar-sounding words like restaurant/restroom).
-2. Speaking quality (0-5 each), inferred from the transcript pattern AND from what the recognition errors imply about the student's pronunciation:
-   - pronunciation: sounds that were likely mispronounced if the recognizer heard a different English word
-   - rhythm: word stress and content/function word balance
-   - liaison: linking between words (a stiff word-by-word delivery often yields fragmented transcripts)
-   - intonation: sentence melody, rising/falling patterns
-   - speed: too fast/slow or even pace is inferable from omissions and errors
+Judge:
+1. Meaning: Does the answer convey the Japanese meaning? It does NOT need to match the model answer. Any natural, correct English that communicates the meaning passes. Ignore likely recognition errors (similar-sounding words).
+2. Which specific word(s) in the transcript are the problem, if any.
+3. Speaking quality (0-5 each): pronunciation, rhythm, liaison, intonation, speed.
+
+IMPORTANT advice rules:
+- NEVER advise the student to speak slowly - this is a speed drill, speed is the point.
+- Advice must be short Japanese (20 chars or less) and must reference the exact problem word if there is one.
+- If everything is fine, very short praise like "完pll!". Actually reply in Japanese: "完璧！" or "ナイス！".
 
 Reply ONLY with JSON:
-{"pass": true/false, "natural": 1-5, "feedback": "日本語で40字以内。意味と発音の総括。直すべき点を具体的に", "skills": {"pronunciation": 0-5, "rhythm": 0-5, "liaison": 0-5, "intonation": 0-5, "speed": 0-5}}`;
+{"pass": true/false, "natural": 1-5, "feedback": "日本語で20字以内のアドバイス", "focus_word": "問題の単語（なければ空文字）", "skills": {"pronunciation": 0-5, "rhythm": 0-5, "liaison": 0-5, "intonation": 0-5, "speed": 0-5}}`;
   let res;
   if(gserver){
     /* 中継サーバー方式：キーはサーバー側のみ */
@@ -843,10 +845,13 @@ function heardHtml(a){
       return `<span class="${cls}">${esc(w)}</span>`;
     }).join(" ");
     const missed = r.marks.filter(m=>m.cls==="miss").map(m=>m.w);
-    const adv = (a.ai && a.ai.feedback) ? a.ai.feedback
+    const fw = (a.ai && a.ai.focus_word) || (missed.length ? missed[0] : "");
+    const advRaw = (a.ai && a.ai.feedback)
+      ? esc(a.ai.feedback)
       : (r.ratio>=80 ? "完璧！その調子"
-        : missed.length && r.ratio>=50 ? `「${missed[0]}」が聞こえにくかったかも`
-        : "ゆっくりはっきり言うと通じるよ");
+        : fw ? `「${fw}」が聞こえにくい`
+        : "もう一回言ってみよう");
+    const adv = fw ? advRaw.replace(esc(fw), `<b style="color:var(--red)">${esc(fw)}</b>`) : advRaw;
     return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（<span class="ok">緑</span>=正確 / <span class="ng">赤</span>=聞き取りがズレた → ${r.ratio}%の内訳）</div>`
       + `<div style="font-size:14.5px">${colored}</div>`
       + `<div style="margin-top:6px;font-size:12.5px;color:var(--dim)">💡 ${esc(adv)}</div>`;
@@ -869,7 +874,9 @@ function updateRow(k, a){
     const SK_LABELS = {pronunciation:"発音",rhythm:"強弱・リズム",liaison:"リエゾン",intonation:"メロディ",speed:"スピード"};
     const skillsHtml = Object.keys(SK_LABELS).filter(k=>sk[k]!=null)
       .map(k=>`<span style="margin-right:10px;white-space:nowrap">${SK_LABELS[k]} <b style="color:var(--amber)">${"●".repeat(+sk[k])}${"○".repeat(5-+sk[k])}</b></span>`).join("");
-    note.innerHTML = `<b>AI:</b> 自然さ ${a.ai.natural}/5 — ${esc(a.ai.feedback||"")}`
+    const fw0 = a.ai.focus_word || "";
+    const fb0 = fw0 ? esc(a.ai.feedback||"").replace(esc(fw0), `<b style="color:var(--red)">${esc(fw0)}</b>`) : esc(a.ai.feedback||"");
+    note.innerHTML = `<b>AI:</b> 自然さ ${a.ai.natural}/5 — ${fb0}`
       + (skillsHtml ? `<div style="margin-top:6px;font-size:12.5px;color:var(--dim)">${skillsHtml}</div>` : "");
   }
 }

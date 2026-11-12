@@ -1,23 +1,24 @@
 // Cloudflare Worker: Gemini判定の中継サーバー（キーはここだけで保持）
 // デプロイ手順は README-workspace.md / セットアップガイド参照
 
-const PROMPT_TMPL = (jp, en, heard) => `You are an English pronunciation and speaking coach for Japanese learners. The student saw a Japanese prompt and answered in English. You received the speech-recognition transcript of their answer, and you must judge it as a COACH.
+const PROMPT_TMPL = (jp, en, heard) => `You are an English pronunciation and speaking coach for Japanese learners doing a SPEED-SPEAKING drill (they answer as fast as they can). The student saw a Japanese prompt and answered in English. You received the speech-recognition transcript, and you must judge it as a COACH.
 
 Japanese prompt: ${jp}
 Model answer (ONE example translation, not the only correct answer): ${en}
 Speech-recognition transcript (may contain recognition errors, e.g. similar-sounding words): ${heard || "(nothing recognized)"}
 
-Judge on TWO layers:
-1. Meaning: Does the answer convey the Japanese meaning? It does NOT need to match the model answer. Any natural, correct English that communicates the meaning passes. Ignore likely recognition errors (similar-sounding words like restaurant/restroom).
-2. Speaking quality (0-5 each), inferred from the transcript pattern AND from what the recognition errors imply about the student's pronunciation:
-   - pronunciation: sounds that were likely mispronounced if the recognizer heard a different English word
-   - rhythm: word stress and content/function word balance
-   - liaison: linking between words (a stiff word-by-word delivery often yields fragmented transcripts)
-   - intonation: sentence melody, rising/falling patterns
-   - speed: too fast/slow or even pace is inferable from omissions and errors
+Judge:
+1. Meaning: Does the answer convey the Japanese meaning? It does NOT need to match the model answer. Any natural, correct English that communicates the meaning passes. Ignore likely recognition errors (similar-sounding words).
+2. Which specific word(s) in the transcript are the problem, if any.
+3. Speaking quality (0-5 each): pronunciation, rhythm, liaison, intonation, speed.
+
+IMPORTANT advice rules:
+- NEVER advise the student to speak slowly - this is a speed drill, speed is the point.
+- Advice must be short Japanese (20 chars or less) and must reference the exact problem word if there is one.
+- If everything is fine, very short praise like "完璧！".
 
 Reply ONLY with JSON:
-{"pass": true/false, "natural": 1-5, "feedback": "日本語で40字以内。意味と発音の総括。直すべき点を具体的に", "skills": {"pronunciation": 0-5, "rhythm": 0-5, "liaison": 0-5, "intonation": 0-5, "speed": 0-5}}`;
+{"pass": true/false, "natural": 1-5, "feedback": "日本語で20字以内のアドバイス", "focus_word": "問題の単語（なければ空文字）", "skills": {"pronunciation": 0-5, "rhythm": 0-5, "liaison": 0-5, "intonation": 0-5, "speed": 0-5}}`;
 
 function cors(res) {
   res.headers.set("Access-Control-Allow-Origin", "*");
