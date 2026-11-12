@@ -762,6 +762,13 @@ Reply ONLY with JSON:
 }
 
 /* ---------- 結果 ---------- */
+function releaseMic(){
+  try{ if(recorder && recorder.state !== "inactive") recorder.stop(); }catch(e){}
+  try{ if(mediaStream) mediaStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+  mediaStream = null;
+  if(audioCtx && audioCtx.state !== "closed"){ try{ audioCtx.close(); }catch(e){} audioCtx = null; analyser = null; }
+  if(vadTimer){ clearInterval(vadTimer); vadTimer = null; }
+}
 function finish(){
   if(challengeOver){ return; }
   challengeOver = true;
@@ -769,6 +776,7 @@ function finish(){
   if(recActive){ stopRec(); setTimeout(renderFinish, 1500); }
   else renderFinish();
   setRecUI(false);
+  releaseMic(); /* 結果画面ではマイク使用を完全解除 */
 }
 function renderFinish(){
   const m = Math.floor(tLeft/60), s = String(tLeft%60).padStart(2,"0");
@@ -867,6 +875,7 @@ function renderResults(){
     box.appendChild(row);
   });
 }
+window.addEventListener("beforeunload", ()=>{ try{ releaseMic(); }catch(e){} });
 $("againBtn").onclick = ()=>{
   $("setup").classList.remove("hidden"); $("stage").classList.add("hidden");
   switchView("play");
