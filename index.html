@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.1</span>
+  <span class="ver">v2.2</span>
 </header>
 
 <nav>
@@ -441,8 +441,15 @@ function showQ(){
   setRecUI(false);
   curTranscript = ""; srErr = "";
   $("liveHeard").textContent = "";
-  if(autoMode){ armVAD(); $("recLbl").textContent = "🎙 話してください（自動録音）"; }
-  else{ $("recLbl").textContent = "タップして録音開始"; }
+  if(autoMode){
+    /* 常時録音方式：問題表示と同時に録音・認識を開始（頭切れ防止） */
+    armVAD();
+    startRec().then(()=>{
+      $("recLbl").textContent = "🎙 英語で答えてください（黙ったら自動で次へ）";
+    });
+  }else{
+    $("recLbl").textContent = "タップして録音開始";
+  }
 }
 
 function setRecUI(on){
@@ -512,7 +519,7 @@ function startRecognition(){
       srErr = e.error || "error";
     };
     recognition.onend = ()=>{
-      if(recActive && srRestarts < 6){
+      if(recActive && srRestarts < 100){
         srRestarts++;
         try{ recognition.start(); }catch(err){}
       } else {
@@ -592,9 +599,8 @@ function vadLoop(){
   if(!autoMode || challengeOver) return;
   const level = rms();
   if(vadState === "armed"){
-    if(level > VAD_ON){
-      if(++onFrames >= 2){ onFrames = 0; vadState = "talking"; talkStart = Date.now(); startRec(); }
-    } else onFrames = 0;
+    /* すでに録音は回っている。声の開始だけを監視 */
+    if(level > VAD_ON){ onFrames = 0; vadState = "talking"; talkStart = Date.now(); }
   } else if(vadState === "talking"){
     if(recActive && Date.now()-talkStart > VAD_MAX_MS){ stopRec(); vadState="processing"; return; }
     if(level < VAD_OFF){
