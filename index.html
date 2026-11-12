@@ -866,14 +866,16 @@ function heardHtml(a){
     else if(dp[i2-1][j2]>=dp[i2][j2-1]){ i2--; }
     else { j2--; }
   }
-  const missing = E.filter((w,idx)=>!hitE[idx]);
+  const POLITE3 = ["could","would","may","might"];
+  const missing = E.filter((w,idx)=>!hitE[idx] && !POLITE3.includes(w));
   const missingHtml = missing.length ? " " + missing.map(()=>" <span class=\"ng\" style=\"font-size:16px;letter-spacing:2px\">■</span>").join("") : "";
 
-  const fw = (a.ai && a.ai.focus_word) || (missing[0] ?? "");
+  const realMissing = missing.filter(w=>!POLITE3.includes(w));
+  const fw = (a.ai && a.ai.focus_word) || (realMissing[0] ?? "");
   const advRaw = (a.ai && a.ai.feedback)
     ? esc(a.ai.feedback)
     : (r.ratio>=80 ? "完璧！その調子"
-      : fw ? `「${fw}」をもう一度`
+      : fw ? `「${fw}」が聞こえにくい`
       : "もう一回言ってみよう");
   const adv = fw ? advRaw.replace(esc(fw), `<b style="color:var(--red)">${esc(fw)}</b>`) : advRaw;
 
