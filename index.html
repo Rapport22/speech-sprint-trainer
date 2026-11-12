@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.5</span>
+  <span class="ver">v2.6</span>
 </header>
 
 <nav>
@@ -205,6 +205,10 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
       <input type="password" id="gkey" placeholder="AIza..." autocomplete="off" style="font-family:monospace">
     </div>
     <label class="chk"><input type="checkbox" id="gkeyShow"> キーを表示（設定時のみチェック）</label>
+    <div class="field" style="margin-top:14px">
+      <label>AI判定サーバーURL（中継方式：設定すればキー欄は不要）</label>
+      <input type="text" id="gserver" placeholder="https://xxxx.workers.dev" autocomplete="off" style="font-family:monospace">
+    </div>
   </div>
   <div style="text-align:right">
     <button class="btn amber" id="goPlay">チャレンジへ →</button>
@@ -283,6 +287,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 </div>
 <script>
 "use strict";
+/* AI判定サーバー（中継方式）。先生がデプロイ後、ここにURLを入れてGitHubへ反映すれば生徒は設定不要 */
 /* ---------- 状態 ---------- */
 let phrases = [];
 let qQueue = [], qIdx = 0, answered = [], tLeft = 0, timerId = null, tStart = 0, tLimit = 0;
@@ -300,6 +305,7 @@ const VAD_ON = 0.055, VAD_OFF = 0.035, VAD_SILENCE_MS = 1800, VAD_MAX_MS = 20000
 const SR_IDLE_MS = 1500; // 認識イベントが止まってから次へ進むまでの時間
 /* AI判定 */
 let gkey = "";
+let gserver = ""; // 中継サーバー（Cloudflare Worker）URL。設定あればキー不要でAI判定
 
 const $ = id => document.getElementById(id);
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -339,7 +345,12 @@ function loadLocal(){
 function saveLocal(){
   try{ localStorage.setItem("sprint_phrases", JSON.stringify(phrases)); }catch(e){}
 }
-function loadKey(){ try{ gkey = localStorage.getItem("sprint_gkey") || ""; }catch(e){ gkey=""; } if(gkey)$("gkey").value=gkey; }
+function loadKey(){
+  try{ gkey = localStorage.getItem("sprint_gkey") || ""; }catch(e){ gkey=""; }
+  if(gkey)$("gkey").value=gkey;
+  try{ gserver = localStorage.getItem("sprint_aiserver") || AI_SERVER_DEFAULT; }catch(e){ gserver = AI_SERVER_DEFAULT || ""; }
+  if(gserver)$("gserver").value=gserver;
+}
 function saveKey(){ try{ localStorage.setItem("sprint_gkey", gkey); }catch(e){} }
 
 /* ---------- 編集画面 ---------- */
@@ -375,6 +386,7 @@ $("fileIn").onchange = e=>{
 };
 $("gkey").addEventListener("input",e=>{ gkey = e.target.value.trim(); saveKey(); });
 $("gkeyShow").addEventListener("change",e=>{ $("gkey").type = e.target.checked ? "text" : "password"; });
+$("gserver").addEventListener("input",e=>{ gserver = e.target.value.trim(); try{ localStorage.setItem("sprint_aiserver",gserver); }catch(err){} });
 $("goPlay").onclick = ()=>{
   const valid = phrases.filter(p=>p[0].trim()&&p[1].trim());
   if(valid.length<1){ alert("日本語と英語が両方入力されたフレーズを1つ以上用意してください"); return; }
@@ -684,7 +696,7 @@ function toast(text, cls){
   t._h = setTimeout(()=>t.classList.remove("show"), 1400);
 }
 
-/* ---------- Gemini AI判定 ---------- */
+/* ---------- Gemini AI判定（中継サーバー優先・キー直はフォールバック） ---------- */
 async function aiJudge(a){
   const prompt =
 `You are an English teacher for Japanese learners. The student saw a Japanese prompt and answered in English.
@@ -698,14 +710,25 @@ Rules:
 - Only fail the answer if the meaning is wrong, incomplete, or unintelligible.
 Reply ONLY with JSON:
 {"pass": true/false, "natural": 1-5, "feedback": "日本語で30字以内のフィードバック。減点がある場合は何を直すか具体的に"}`;
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(gkey)}`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({
-      contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.2, responseMimeType:"application/json"}
-    })
-  });
+  let res;
+  if(gserver){
+    /* 中継サーバー方式：キーはサーバー側のみ */
+    res = await fetch(gserver.replace(/\/$/,"") + "/", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({jp:a.jp, en:a.en, heard:a.heard||""})
+    });
+  }else{
+    if(!gkey) throw new Error("キー未設定");
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(gkey)}`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        contents:[{parts:[{text:prompt}]}],
+        generationConfig:{temperature:0.2, responseMimeType:"application/json"}
+      })
+    });
+  }
   if(!res.ok) throw new Error("HTTP "+res.status);
   const data = await res.json();
   const txt = data.candidates[0].content.parts[0].text;
@@ -729,9 +752,9 @@ function renderFinish(){
   $("sDone").textContent = answered.length;
   $("sTotal").textContent = qQueue.length;
   $("sTime").textContent = m+":"+s;
-  $("judgeNote").textContent = gkey
-    ? "AI判定（Gemini）を取得中… 画面が順次更新されます。"
-    : "判定はブラウザの音声認識と模範解答の一致による簡易判定です。編集タブでGemini APIキーを設定すると「通じるか・自然さ」のAI判定になります。";
+  $("judgeNote").textContent = (gserver || gkey)
+    ? "AI判定を取得中… 画面が順次更新されます。"
+    : "判定はブラウザの音声認識と模範解答の一致による簡易判定です。AI判定（通じるか・自然さ）を使うにはAI判定サーバーまたはGemini APIキーの設定が必要です。";
   renderResults();
   switchView("result");
   if(gkey) runAiJudge();
@@ -744,11 +767,14 @@ async function runAiJudge(){
       a.ai = r;
       updateRow(k, a);
     }catch(e){
-      $("judgeNote").textContent = "AI判定でエラーが発生しました（"+e.message+"）。キーを確認してください。";
+      const msg = e.message==="キー未設定"
+        ? "AI判定サーバーまたはGemini APIキーが設定されていません。"
+        : "AI判定でエラーが発生しました（"+e.message+"）。";
+      $("judgeNote").textContent = msg + (e.message.includes("429") ? " 無料枠の1日上限に達した可能性があります。" : "");
       return;
     }
   }
-  if(answered.some(a=>a.ai)) $("judgeNote").textContent = "AI判定（Gemini）: 通じるか＋自然さで評価しました。";
+  if(answered.some(a=>a.ai)) $("judgeNote").textContent = "AI判定: 通じるか＋自然さで評価しました。";
   renderFinishStats();
 }
 function renderFinishStats(){
