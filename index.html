@@ -162,7 +162,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v3.3</span>
+  <span class="ver">v3.4</span>
 </header>
 
 <nav>
@@ -288,9 +288,9 @@ let autoMode = true;
 let audioCtx = null, analyser = null, vadBuf = null, vadTimer = null;
 let vadState = "idle"; // idle | armed | talking | processing
 let onFrames = 0, offFrames = 0, talkStart = 0;
-let lastResultAt = 0, lastInterim = "", lastFinal = "";
+let lastResultAt = 0, lastInterim = "", lastFinal = "", qShownAt = 0;
 const VAD_ON = 0.055, VAD_OFF = 0.035, VAD_SILENCE_MS = 1800, VAD_MAX_MS = 20000;
-const SR_IDLE_MS = 1500; // 認識イベントが止まってから次へ進むまでの時間
+const SR_IDLE_MS = 1200; // 認識イベントが止まってから次へ進むまでの時間
 /* AI判定 */
 let gkey = "";
 let gserver = ""; // 中継サーバー（Cloudflare Worker）URL。設定あればキー不要でAI判定
@@ -441,6 +441,7 @@ function showQ(){
   setRecUI(false);
   curTranscript = ""; srErr = ""; lastInterim = ""; lastFinal = "";
   lastResultAt = Date.now();
+  qShownAt = Date.now();
   $("liveHeard").innerHTML = "";
   if(autoMode){
     /* 常時録音方式：問題表示と同時に録音・認識を開始（頭切れ防止） */
@@ -628,6 +629,8 @@ function vadLoop(){
   if(vadState === "armed"){
     if(level > VAD_ON){ onFrames = 0; vadState = "talking"; talkStart = Date.now(); }
   } else if(vadState === "talking"){
+    /* 絶対安全網: 問題を表示してから90秒経ったら強制で次へ（無音問題・認識停止対策） */
+    if(Date.now()-qShownAt > 90000){ lastInterim=""; stopRec(); vadState = "processing"; return; }
     /* 話しすぎキャップ */
     if(recActive && Date.now()-talkStart > VAD_MAX_MS){ stopRec(); vadState="processing"; return; }
     /* 主トリガー：認識エンジンが新しい言葉を受け付けなくなって1.5秒 → 確定して次へ
@@ -687,13 +690,12 @@ function matchScore(expected, heard){
 }
 /* 「通じるか」簡易判定：認識された語が模範解答とどれだけ重なるか＋自然な言い換えは認識自体が成立していれば○寄り */
 function judge(a){
-  if(a.ai) return {b:`${a.ai.pass?"○ 通じた":"✕ 要練習"}（AI判定）`, cls:a.ai.pass?"hi":"lo", ratio:null};
-  if(!a.heard) return {b:"✕ 認識なし", cls:"lo", ratio:0};
+  if(a.ai) return {b:`${a.ai.pass?"○ 通じた":"✕ 通じない"}（AI判定）`, cls:a.ai.pass?"hi":"lo", ratio:null};
+  if(!a.heard) return {b:"✕ 聞き取れず", cls:"lo", ratio:0};
   const r = matchScore(a.en,a.heard);
   if(r.ratio>=50) return {b:"○ 通じた", cls:"hi", ratio:r.ratio};
   if(r.ratio>=20) return {b:"△ 惜しい", cls:"mid", ratio:r.ratio};
-  /* 語彙は違うが認識は成立 → 言い換え可能性。聞き取れた語数があれば△扱い */
-  return {b: words(a.heard).length>=2 ? "△ 言い換え？" : "✕ 要練習", cls: words(a.heard).length>=2 ? "mid":"lo", ratio:r.ratio};
+  return {b: words(a.heard).length>=2 ? "△ 意味が違うかも" : "✕ もう一度", cls: words(a.heard).length>=2 ? "mid":"lo", ratio:r.ratio};
 }
 /* 語彙一致から一言アドバイスを生成（AI判定のfeedbackがあればそちらを優先） */
 function quickAdvice(a, r){
@@ -803,8 +805,17 @@ function renderFinishStats(){
 }
 function heardHtml(a){
   if(a.heard){
-    /* 生徒の英語は「認識された全文をそのまま」表示（採点は内部で実施） */
-    return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（AIの聞き取り）</div><span style="font-size:14.5px">${esc(a.heard)}</span>`;
+    /* 生徒の英語を単語単位で色分き（%の根拠そのもの）+ 一言アドバイス */
+    const r = matchScore(a.en,a.heard);
+    const marksHtml = r.marks.map(m=>`<span class="${m.cls}">${esc(m.w)}</span>`).join(" ");
+    const missed = r.marks.filter(m=>m.cls==="miss").map(m=>m.w);
+    const adv = (a.ai && a.ai.feedback) ? a.ai.feedback
+      : (r.ratio>=80 ? "完璧！その調子"
+        : missed.length && r.ratio>=50 ? `「${missed[0]}」が聞こえにくかったかも`
+        : "ゆっくりはっきり言うと通じるよ");
+    return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（<span class="ok">緑</span>=正確 / <span class="ng">赤</span>=聞き取りが違う → ${r.ratio}%の内訳）</div>`
+      + `<div style="font-size:14.5px">${marksHtml}</div>`
+      + `<div style="margin-top:6px;font-size:12.5px;color:var(--dim)">💡 ${esc(adv)}</div>`;
   }
   if(a.srErr) return `<span class="miss">– 認識エラー(${a.srErr}) – 録音は再生できます。ネット接続を確認するか、Chromeで開いてください。</span>`;
   return `<span class="miss">– 認識できませんでした（録音は再生できます）–</span>`;
