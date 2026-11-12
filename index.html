@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.4</span>
+  <span class="ver">v2.5</span>
 </header>
 
 <nav>
@@ -201,9 +201,10 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
       未設定の場合は、音声認識の結果から「通じた／惜しい／要練習」を簡易判定します。
     </p>
     <div class="field">
-      <label>GEMINI API KEY</label>
-      <input type="text" id="gkey" placeholder="AIza..." autocomplete="off">
+      <label>GEMINI API KEY（保存時にマスクされます）</label>
+      <input type="password" id="gkey" placeholder="AIza..." autocomplete="off" style="font-family:monospace">
     </div>
+    <label class="chk"><input type="checkbox" id="gkeyShow"> キーを表示（設定時のみチェック）</label>
   </div>
   <div style="text-align:right">
     <button class="btn amber" id="goPlay">チャレンジへ →</button>
@@ -373,6 +374,7 @@ $("fileIn").onchange = e=>{
   r.readAsText(f);
 };
 $("gkey").addEventListener("input",e=>{ gkey = e.target.value.trim(); saveKey(); });
+$("gkeyShow").addEventListener("change",e=>{ $("gkey").type = e.target.checked ? "text" : "password"; });
 $("goPlay").onclick = ()=>{
   const valid = phrases.filter(p=>p[0].trim()&&p[1].trim());
   if(valid.length<1){ alert("日本語と英語が両方入力されたフレーズを1つ以上用意してください"); return; }
