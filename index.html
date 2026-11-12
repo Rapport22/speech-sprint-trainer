@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スピード発話トレーナー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0e1a2b; --panel:#152538; --panel2:#1c3049;
+  --line:#2a4060; --ink:#eaf1f9; --dim:#a7b9d0;
+  --amber:#ffc94a; --red:#ff5a5a; --mint:#6fe3b0;
+  --r:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:var(--navy)}
+body{
+  font-family:'Zen Maru Gothic',sans-serif;color:var(--ink);
+  background:
+    radial-gradient(1200px 500px at 50% -10%, #1d3252 0%, transparent 60%),
+    var(--navy);
+  min-height:100vh;padding:24px 16px 60px;
+}
+.wrap{max-width:760px;margin:0 auto}
+/* ---------- ヘッダー ---------- */
+header{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+.lamp{
+  width:46px;height:46px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 35% 30%, #6b4b12, #2a1c05);
+  border:3px solid #3a2f14;display:grid;place-items:center;
+}
+.lamp .core{width:16px;height:16px;border-radius:50%;background:#57431a}
+.lamp.on{border-color:var(--amber);box-shadow:0 0 22px rgba(255,201,74,.55)}
+.lamp.on .core{background:var(--amber);box-shadow:0 0 12px var(--amber);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.lamp.on .core{animation:none}}
+h1{font-size:22px;font-weight:900;letter-spacing:.04em}
+h1 small{display:block;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.28em}
+header .ver{margin-left:auto;font-family:'DotGothic16',monospace;font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:4px 10px}
+/* ---------- タブ ---------- */
+nav{display:flex;gap:8px;margin-bottom:22px}
+nav button{
+  flex:1;padding:11px 6px;border-radius:99px;border:1px solid var(--line);
+  background:transparent;color:var(--dim);font:700 14px 'Zen Maru Gothic';cursor:pointer;
+  transition:.15s;
+}
+nav button.act{background:var(--amber);color:#1d1503;border-color:var(--amber)}
+/* ---------- 共通 ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:16px}
+.card h2{font-size:15px;font-weight:900;color:var(--amber);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h2 .tag{font-family:'DotGothic16';font-size:10px;color:var(--dim);font-weight:400;margin-left:auto;letter-spacing:.1em}
+button{font-family:'Zen Maru Gothic'}
+.btn{
+  display:inline-block;border:none;border-radius:12px;padding:12px 22px;cursor:pointer;
+  font:900 15px 'Zen Maru Gothic';transition:.15s;
+}
+.btn.amber{background:var(--amber);color:#1d1503}
+.btn.amber:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.ghost:hover{border-color:var(--dim)}
+.btn.red{background:var(--red);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.muted{color:var(--dim);font-size:12.5px;line-height:1.7}
+input[type=text],select{
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--ink);
+  padding:9px 11px;font:700 14px 'Zen Maru Gothic';width:100%;
+}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin-top:12px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--amber)}
+/* ---------- フレーズ編集 ---------- */
+.ph-head{display:grid;grid-template-columns:1fr 1fr 30px;gap:8px;margin-bottom:6px}
+.ph-head span{font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.12em}
+.ph-row{display:grid;grid-template-columns:1fr 1fr 30px;gap:8px;margin-bottom:6px}
+.ph-row .del{background:none;border:none;color:var(--dim);font-size:17px;cursor:pointer}
+.ph-row .del:hover{color:var(--red)}
+.set-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.count-chip{font-family:'DotGothic16';font-size:11px;color:var(--amber);border:1px solid var(--line);border-radius:99px;padding:3px 10px;margin-left:8px}
+/* ---------- チャレンジ ---------- */
+.setup-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.field{flex:1;min-width:150px}
+.field label{display:block;font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.12em;margin-bottom:5px}
+.stage{text-align:center}
+.stage .timerbar{height:10px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-bottom:6px}
+.stage .timerbar i{display:block;height:100%;background:var(--amber);width:100%;transition:width .3s linear}
+.stage .timerbar.low i{background:var(--red)}
+.bigtime{font-family:'DotGothic16';font-size:44px;color:var(--amber);line-height:1.1}
+.bigtime.low{color:var(--red)}
+.prog{font-family:'DotGothic16';font-size:12px;color:var(--dim);margin-bottom:22px}
+.jp-prompt{
+  font-size:clamp(24px,6vw,34px);font-weight:900;line-height:1.45;
+  background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);
+  padding:30px 20px;margin-bottom:8px;min-height:120px;display:grid;place-items:center;
+}
+.no{font-family:'DotGothic16';font-size:11px;color:var(--dim);letter-spacing:.15em;margin-bottom:14px}
+.rec-zone{margin-top:22px}
+.recbtn{
+  width:96px;height:96px;border-radius:50%;border:4px solid var(--line);cursor:pointer;
+  background:radial-gradient(circle at 35% 30%, #35506f, #1a2c44);
+  display:grid;place-items:center;margin:0 auto;transition:.15s;
+}
+.recbtn .mic{width:34px;height:34px;fill:var(--ink)}
+.recbtn:hover{border-color:var(--dim)}
+.recbtn.rec{border-color:var(--red);box-shadow:0 0 0 8px rgba(255,90,90,.15),0 0 30px rgba(255,90,90,.5)}
+.recbtn.rec .mic{fill:var(--red)}
+.rec-label{font-family:'DotGothic16';font-size:11px;color:var(--dim);margin-top:10px;letter-spacing:.1em}
+.stage-actions{display:flex;gap:10px;justify-content:center;margin-top:18px}
+.air{
+  display:inline-flex;align-items:center;gap:8px;font-family:'DotGothic16';font-size:11px;
+  color:var(--dim);letter-spacing:.2em;margin-bottom:8px;
+}
+.air i{width:9px;height:9px;border-radius:50%;background:#3a4a60;display:inline-block}
+.air.live{color:var(--red)}
+.air.live i{background:var(--red);box-shadow:0 0 8px var(--red)}
+.toast{
+  position:fixed;left:50%;top:18%;transform:translateX(-50%) scale(.9);
+  background:var(--panel2);border:1px solid var(--line);border-radius:99px;
+  padding:10px 22px;font:900 16px 'Zen Maru Gothic';opacity:0;pointer-events:none;
+  transition:.2s;z-index:9;
+}
+.toast.show{opacity:1;transform:translateX(-50%) scale(1)}
+/* ---------- 結果 ---------- */
+.summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.stat{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+.stat b{display:block;font-family:'DotGothic16';font-size:30px;color:var(--amber);font-weight:400}
+.stat span{font-size:11px;color:var(--dim)}
+.res-row{border-top:1px dashed var(--line);padding:14px 2px}
+.res-row:first-of-type{border-top:none}
+.res-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.res-top .jp{font-weight:900;font-size:15px}
+.res-top .score{margin-left:auto;font-family:'DotGothic16';font-size:18px}
+.badge{font-size:12px;font-weight:900;border-radius:99px;padding:3px 10px}
+.badge.hi{background:rgba(111,227,176,.15);color:var(--mint)}
+.badge.mid{background:rgba(255,201,74,.15);color:var(--amber)}
+.badge.lo{background:rgba(255,90,90,.15);color:var(--red)}
+.score.hi{color:var(--mint)} .score.mid{color:var(--amber)} .score.lo{color:var(--red)}
+.res-en{font-size:13px;color:var(--dim);margin:6px 0 8px}
+.heard{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:13.5px;line-height:1.8}
+.heard .ok{color:var(--mint);font-weight:700}
+.heard .ng{color:var(--red);text-decoration:underline wavy rgba(255,90,90,.5)}
+.heard .miss{color:var(--dim)}
+.ai-note{margin-top:8px;font-size:13px;line-height:1.7;color:var(--ink);background:rgba(255,201,74,.07);border:1px dashed #6b5a25;border-radius:9px;padding:9px 12px}
+.ai-note b{color:var(--amber)}
+.res-ctl{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.mini{
+  border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;
+  padding:6px 12px;font:700 12px 'Zen Maru Gothic';cursor:pointer;text-decoration:none;display:inline-block;
+}
+.mini:hover{border-color:var(--amber);color:var(--amber)}
+.warn{border:1px solid #6b4b12;background:#2a2110;border-radius:12px;padding:12px 14px;font-size:12.5px;color:#ffd98a;line-height:1.7;margin-bottom:16px;display:none}
+.warn.show{display:block}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="toast" id="toast"></div>
+
+<header>
+  <div class="lamp" id="lamp"><span class="core"></span></div>
+  <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
+  <span class="ver">v2.0</span>
+</header>
+
+<nav>
+  <button data-v="edit" class="act">① フレーズを編集</button>
+  <button data-v="play">② チャレンジ</button>
+  <button data-v="result">③ 結果</button>
+</nav>
+
+<div class="warn" id="warnMic">
+  ⚠️ マイクへのアクセスが拒否されています。アドレスバー右のカメラ/マイクアイコンからマイクを許可してください。
+  チャット内プレビューではマイクが遮断されることがあります。その場合は<b>ファイルをダウンロードして Google Chrome で開く</b>か、
+  公開URL（アプリ配布時に案内）で開いてください。
+</div>
+<div class="warn" id="warnSR">
+  ⚠️ このブラウザは音声認識に対応していません。録音と再生はできますが、自動判定はできません（Chrome / Edge を推奨。Chromeの音声認識にはネット接続が必要です）。
+</div>
+
+<!-- ================= 編集 ================= -->
+<section id="v-edit">
+  <div class="card">
+    <h2>フレーズセット<span class="tag" id="cnt">20 PHRASES</span></h2>
+    <p class="muted" style="margin-bottom:12px">左：日本語の出題文　右：答える英語（模範解答）。チャレンジでは日本語がランダムに出題されます。</p>
+    <div class="ph-head"><span>日本語（出題）</span><span>英語（模範解答）</span><span></span></div>
+    <div id="phList"></div>
+    <div class="set-actions">
+      <button class="btn ghost" id="addRow">＋ 1行追加</button>
+      <button class="btn ghost" id="dlSet">セットを保存</button>
+      <button class="btn ghost" id="ldSet">セットを読み込む</button>
+      <input type="file" id="fileIn" accept=".json" class="hidden">
+    </div>
+  </div>
+  <div class="card">
+    <h2>AI判定（任意）</h2>
+    <p class="muted" style="margin-bottom:10px">
+      Gemini APIキーを設定すると、判定が「通じるか・自然な英語か」のAI評価になります（各回答に日本語のフィードバック付き）。<br>
+      無料で取得できます: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--amber)">Google AI Studio でキーを作成</a> → 下に貼り付け。
+      未設定の場合は、音声認識の結果から「通じた／惜しい／要練習」を簡易判定します。
+    </p>
+    <div class="field">
+      <label>GEMINI API KEY</label>
+      <input type="text" id="gkey" placeholder="AIza..." autocomplete="off">
+    </div>
+  </div>
+  <div style="text-align:right">
+    <button class="btn amber" id="goPlay">チャレンジへ →</button>
+  </div>
+</section>
+
+<!-- ================= チャレンジ ================= -->
+<section id="v-play" class="hidden">
+  <!-- 設定 -->
+  <div class="card" id="setup">
+    <h2>チャレンジ設定</h2>
+    <div class="setup-row">
+      <div class="field">
+        <label>制限時間</label>
+        <select id="dur">
+          <option value="60">60秒</option>
+          <option value="120" selected>120秒</option>
+          <option value="180">180秒</option>
+          <option value="300">300秒</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>出題数</label>
+        <select id="qcount">
+          <option value="all" selected>すべて（登録済み全フレーズ）</option>
+          <option value="10">10問</option>
+          <option value="5">5問</option>
+        </select>
+      </div>
+      <button class="btn amber" id="startBtn" style="min-width:160px">スタート</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="autoMode" checked> ハンズフリー（話しかけると自動で録音→黙ったら次の問題）</label>
+    <p class="muted" style="margin-top:10px">スタート後、日本語が出題されるので英語で答えます。時間内に何問答えられるか競います。</p>
+  </div>
+
+  <!-- ステージ -->
+  <div class="card stage hidden" id="stage">
+    <div class="air" id="air"><i></i><span id="airTxt">STANDBY</span></div>
+    <div class="timerbar" id="tbar"><i id="tfill"></i></div>
+    <div class="bigtime" id="tval">0:00</div>
+    <div class="prog" id="prog"></div>
+    <div class="no" id="qNo"></div>
+    <div class="jp-prompt" id="qJp"></div>
+    <div class="rec-zone">
+      <button class="recbtn" id="recBtn" title="録音">
+        <svg class="mic" viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15Z"/><path d="M18.5 11.5a6.5 6.5 0 0 1-13 0H3.5a8.5 8.5 0 0 0 7 8.36V22h3v-2.14a8.5 8.5 0 0 0 7-8.36h-2Z"/></svg>
+      </button>
+      <div class="rec-label" id="recLbl">準備中…</div>
+      <div class="heard" id="liveHeard" style="margin-top:12px;min-height:1.6em;font-size:12.5px;color:var(--dim)"></div>
+    </div>
+    <div class="stage-actions">
+      <button class="btn ghost" id="skipBtn">スキップ</button>
+      <button class="btn red hidden" id="stopBtn">終了する</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 結果 ================= -->
+<section id="v-result" class="hidden">
+  <div class="card">
+    <h2>チャレンジ結果</h2>
+    <div class="summary">
+      <div class="stat"><b id="sOk">0</b><span>通じた回答</span></div>
+      <div class="stat"><b id="sDone">0</b><span>録音できたフレーズ</span></div>
+      <div class="stat"><b id="sTotal">0</b><span>出題数</span></div>
+      <div class="stat"><b id="sTime">–</b><span>残り時間</span></div>
+    </div>
+    <p class="muted" id="judgeNote" style="margin-top:10px"></p>
+  </div>
+  <div class="card" id="resList"></div>
+  <div style="text-align:right">
+    <button class="btn amber" id="againBtn">もう一度チャレンジ</button>
+  </div>
+</section>
+
+</div>
+<script>
+"use strict";
+/* ---------- 状態 ---------- */
+let phrases = [];
+let qQueue = [], qIdx = 0, answered = [], tLeft = 0, timerId = null, tStart = 0, tLimit = 0;
+let mediaStream = null, recorder = null, chunks = [], recognition = null, recActive = false;
+let curTranscript = "", srErr = "";
+let challengeOver = false;
+let autoMode = true;
+/* VAD */
+let audioCtx = null, analyser = null, vadBuf = null, vadTimer = null;
+let vadState = "idle"; // idle | armed | talking | processing
+let onFrames = 0, offFrames = 0, talkStart = 0;
+const VAD_ON = 0.055, VAD_OFF = 0.035, VAD_SILENCE_MS = 1200, VAD_MAX_MS = 15000;
+/* AI判定 */
+let gkey = "";
+
+const $ = id => document.getElementById(id);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+/* ---------- 初期フレーズ ---------- */
+const DEFAULT = [
+ ["トイレはどこですか？","Where is the restroom?"],
+ ["いくらですか？","How much is it?"],
+ ["これをください。","I'll take this one, please."],
+ ["クレジットカードは使えますか？","Do you take credit cards?"],
+ ["水をください。","Could I have some water?"],
+ ["領収書をもらえますか？","Could I get a receipt?"],
+ ["駅はどこですか？","Where is the train station?"],
+ ["チェックインしたいです。","I'd like to check in."],
+ ["チェックアウトは何時ですか？","What time is check-out?"],
+ ["ここで両替できますか？","Can I exchange money here?"],
+ ["助けてください。","Please help me."],
+ ["道に迷いました。","I'm lost."],
+ ["予約しています。","I have a reservation."],
+ ["もう一度言ってもらえますか？","Could you say that again?"],
+ ["もう少しゆっくり話してください。","Please speak more slowly."],
+ ["写真を撮ってもらえますか？","Could you take a photo of us?"],
+ ["おいしいですね。","This is delicious."],
+ ["病院はどこですか？","Where is the nearest hospital?"],
+ ["バスはどこで乗れますか？","Where can I catch the bus?"],
+ ["ありがとうございました。","Thank you very much."]
+];
+if (!loadLocal()) phrases = DEFAULT.map(p=>[p[0],p[1]]);
+
+function loadLocal(){
+  try{
+    const s = localStorage.getItem("sprint_phrases");
+    if(s){ phrases = JSON.parse(s); return phrases.length>0; }
+  }catch(e){}
+  return false;
+}
+function saveLocal(){
+  try{ localStorage.setItem("sprint_phrases", JSON.stringify(phrases)); }catch(e){}
+}
+function loadKey(){ try{ gkey = localStorage.getItem("sprint_gkey") || ""; }catch(e){ gkey=""; } if(gkey)$("gkey").value=gkey; }
+function saveKey(){ try{ localStorage.setItem("sprint_gkey", gkey); }catch(e){} }
+
+/* ---------- 編集画面 ---------- */
+function renderList(){
+  const box = $("phList"); box.innerHTML = "";
+  phrases.forEach((p,i)=>{
+    const row = document.createElement("div"); row.className = "ph-row";
+    row.innerHTML = `<input type="text" value="${esc(p[0])}" data-k="0"><input type="text" value="${esc(p[1])}" data-k="1"><button class="del" title="削除">✕</button>`;
+    row.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{
+      phrases[i][+inp.dataset.k] = inp.value; saveLocal();
+    }));
+    row.querySelector(".del").addEventListener("click",()=>{ phrases.splice(i,1); saveLocal(); renderList(); });
+    box.appendChild(row);
+  });
+  $("cnt").textContent = phrases.length + " PHRASES";
+}
+function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+$("addRow").onclick = ()=>{ phrases.push(["",""]); saveLocal(); renderList(); };
+$("dlSet").onclick = ()=>{
+  const blob = new Blob([JSON.stringify(phrases,null,1)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "phrase-set.json"; a.click();
+};
+$("ldSet").onclick = ()=>$("fileIn").click();
+$("fileIn").onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ try{
+      const d = JSON.parse(r.result);
+      if(Array.isArray(d) && d.length) { phrases = d.map(x=>Array.isArray(x)?[x[0]||"",x[1]||""]:[x.jp||"",x.en||""]); saveLocal(); renderList(); }
+    }catch(err){ alert("読み込みに失敗しました"); } };
+  r.readAsText(f);
+};
+$("gkey").addEventListener("input",e=>{ gkey = e.target.value.trim(); saveKey(); });
+$("goPlay").onclick = ()=>{
+  const valid = phrases.filter(p=>p[0].trim()&&p[1].trim());
+  if(valid.length<1){ alert("日本語と英語が両方入力されたフレーズを1つ以上用意してください"); return; }
+  $("setup").classList.remove("hidden"); $("stage").classList.add("hidden");
+  switchView("play");
+};
+if(!SR){ $("warnSR").classList.add("show"); }
+
+/* ---------- タブ ---------- */
+function switchView(v){
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("act",b.dataset.v===v));
+  ["edit","play","result"].forEach(k=>$("v-"+k).classList.toggle("hidden",k!==v));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  if(b.dataset.v==="play") $("setup").classList.remove("hidden"), $("stage").classList.add("hidden");
+  switchView(b.dataset.v);
+});
+
+/* ---------- マイク（1回だけ取得） ---------- */
+async function ensureMic(){
+  if(mediaStream) return mediaStream;
+  mediaStream = await navigator.mediaDevices.getUserMedia({audio:true});
+  return mediaStream;
+}
+
+/* ---------- チャレンジ ---------- */
+$("startBtn").onclick = async ()=>{
+  const valid = phrases.filter(p=>p[0].trim()&&p[1].trim());
+  const n = $("qcount").value==="all" ? valid.length : Math.min(+$("qcount").value, valid.length);
+  qQueue = shuffle(valid.slice()).slice(0,n);
+  try{ await ensureMic(); }
+  catch(e){ $("warnMic").classList.add("show"); return; }
+  $("warnMic").classList.remove("show");
+  autoMode = $("autoMode").checked;
+  challengeOver = false; srErr = "";
+  qIdx = 0; answered = []; tLimit = +$("dur").value; tLeft = tLimit;
+  $("setup").classList.add("hidden"); $("stage").classList.remove("hidden");
+  $("stopBtn").classList.remove("hidden");
+  setupVAD();
+  startTimer(); showQ(); switchView("play");
+};
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+function startTimer(){
+  tStart = Date.now();
+  timerId = setInterval(()=>{
+    tLeft = tLimit - Math.floor((Date.now()-tStart)/1000);
+    if(tLeft<=0){ tLeft=0; tick(); finish(); return; }
+    tick();
+  },250);
+  tick();
+}
+function tick(){
+  const m = Math.floor(tLeft/60), s = String(tLeft%60).padStart(2,"0");
+  const tv = $("tval"); tv.textContent = m+":"+s;
+  tv.classList.toggle("low", tLeft<=10);
+  $("tbar").classList.toggle("low", tLeft<=10);
+  $("tfill").style.width = (tLeft/tLimit*100)+"%";
+  $("prog").textContent = `答えた ${answered.length} 問 ／ 残り ${qQueue.length - qIdx} 問`;
+}
+
+function showQ(){
+  if(qIdx>=qQueue.length || challengeOver){ finish(); return; }
+  const q = qQueue[qIdx];
+  $("qNo").textContent = `QUESTION ${qIdx+1} / ${qQueue.length}`;
+  $("qJp").textContent = q[0];
+  setRecUI(false);
+  curTranscript = ""; srErr = "";
+  $("liveHeard").textContent = "";
+  if(autoMode){ armVAD(); $("recLbl").textContent = "🎙 話してください（自動録音）"; }
+  else{ $("recLbl").textContent = "タップして録音開始"; }
+}
+
+function setRecUI(on){
+  $("recBtn").classList.toggle("rec",on);
+  $("lamp").classList.toggle("on",on);
+  $("air").classList.toggle("live",on);
+  $("airTxt").textContent = on ? "ON AIR" : "STANDBY";
+}
+
+/* ---------- 録音（手動 + VAD自動 共通） ---------- */
+$("recBtn").onclick = ()=> recActive ? stopRec() : startRec();
+
+async function startRec(){
+  if(recActive) return;
+  let stream;
+  try{ stream = await ensureMic(); }
+  catch(e){ $("warnMic").classList.add("show"); return; }
+  const q = qQueue[qIdx]; if(!q) return;
+  chunks = []; curTranscript = ""; srErr = "";
+  $("liveHeard").textContent = "";
+  let recDone = false, srDone = !SR, finalized = false, blob = null;
+  const tryFin = ()=>{
+    if(finalized || !recDone || !srDone) return;
+    finalized = true;
+    commitAnswer(q, blob, curTranscript, srErr);
+  };
+  try{
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = ()=>{ blob = new Blob(chunks,{type:recorder.mimeType || "audio/webm"}); recDone = true; tryFin(); };
+    recorder.start();
+  }catch(e){ recDone = true; tryFin(); }
+  recActive = true; setRecUI(true);
+  $("recLbl").textContent = "録音中…（タップで早送り確定）";
+  if(SR){
+    try{
+      recognition = new SR();
+      recognition.lang = "en-US";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = e=>{
+        let t = "";
+        for(let i=0;i<e.results.length;i++) t += e.results[i][0].transcript;
+        curTranscript = t;
+        $("liveHeard").textContent = t ? "認識中: " + t : "";
+      };
+      recognition.onerror = e=>{ srErr = e.error || "error"; srDone = true; tryFin(); };
+      recognition.onend   = ()=>{ srDone = true; tryFin(); };
+      recognition.start();
+    }catch(e){ srDone = true; tryFin(); }
+  }
+}
+
+function stopRec(){
+  if(!recActive) return;
+  recActive = false; setRecUI(false);
+  $("recLbl").textContent = "判定中…";
+  try{ recognition && recognition.stop(); }catch(e){}
+  try{ recorder && recorder.state !== "inactive" && recorder.stop(); }catch(e){}
+}
+
+function commitAnswer(q, blob, heard, err){
+  const hasAudio = !!(blob && blob.size > 0);
+  answered.push({
+    jp:q[0], en:q[1],
+    url: hasAudio ? URL.createObjectURL(blob) : "",
+    heard, ext: hasAudio ? extOf(blob.type) : "webm", srErr: err, ai:null
+  });
+  qIdx++;
+  if(challengeOver){ renderFinish(); return; }
+  /* 簡易判定をトースト表示 */
+  const v = judge(answered[answered.length-1]);
+  toast(v.b, v.cls);
+  if(autoMode){
+    vadState = "processing";
+    setTimeout(showQ, 500);
+  }else{
+    tick(); showQ();
+  }
+  tick();
+}
+function extOf(t){ return (t||"").includes("mp4")?"m4a":"webm"; }
+
+$("skipBtn").onclick = ()=>{
+  if(recActive){ stopRec(); return; }
+  qIdx++; tick(); showQ();
+};
+$("stopBtn").onclick = ()=>{ finish(); };
+
+/* ---------- VAD（自動録音） ---------- */
+function setupVAD(){
+  try{
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(mediaStream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      vadBuf = new Uint8Array(analyser.fftSize);
+    }
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    if(!vadTimer){
+      vadTimer = setInterval(vadLoop, 100);
+    }
+  }catch(e){ /* VAD不可環境 → 手動モードで使用可 */ }
+}
+function rms(){
+  if(!analyser) return 0;
+  analyser.getByteTimeDomainData(vadBuf);
+  let sum = 0;
+  for(let i=0;i<vadBuf.length;i++){ const v=(vadBuf[i]-128)/128; sum += v*v; }
+  return Math.sqrt(sum/vadBuf.length);
+}
+function armVAD(){
+  vadState = "armed"; onFrames = 0; offFrames = 0;
+}
+function vadLoop(){
+  if(!autoMode || challengeOver) return;
+  const level = rms();
+  if(vadState === "armed"){
+    if(level > VAD_ON){
+      if(++onFrames >= 2){ onFrames = 0; vadState = "talking"; talkStart = Date.now(); startRec(); }
+    } else onFrames = 0;
+  } else if(vadState === "talking"){
+    if(recActive && Date.now()-talkStart > VAD_MAX_MS){ stopRec(); vadState="processing"; return; }
+    if(level < VAD_OFF){
+      if(++offFrames >= Math.round(VAD_SILENCE_MS/100)){ stopRec(); vadState = "processing"; }
+    } else offFrames = 0;
+  }
+}
+
+/* ---------- 判定 ---------- */
+function words(s){
+  return (s||"").toLowerCase().replace(/[^a-z' ]+/g," ").split(/\s+/).filter(Boolean);
+}
+function matchScore(expected, heard){
+  const E = words(expected), H = words(heard);
+  if(!H.length) return {ratio:0, marks:E.map(w=>({w,cls:"miss"})), extras:[]};
+  const dp = Array.from({length:E.length+1},()=>new Array(H.length+1).fill(0));
+  for(let i=1;i<=E.length;i++)for(let j=1;j<=H.length;j++)
+    dp[i][j] = E[i-1]===H[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j],dp[i][j-1]);
+  const marks = []; let i=E.length, j=H.length;
+  const hitH = new Array(H.length).fill(false);
+  while(i>0&&j>0){
+    if(E[i-1]===H[j-1]){ hitH[j-1]=true; marks.push({w:E[i-1],cls:"ok"}); i--;j--; }
+    else if(dp[i-1][j]>=dp[i][j-1]){ marks.push({w:E[i-1],cls:"miss"}); i--; }
+    else { j--; }
+  }
+  while(i>0){ marks.push({w:E[i-1],cls:"miss"}); i--; }
+  marks.reverse();
+  const extras = H.filter((_,k)=>!hitH[k]);
+  return {ratio: E.length? Math.round(dp[E.length][H.length]/E.length*100):0, marks, extras};
+}
+/* 「通じるか」簡易判定：認識された語が模範解答とどれだけ重なるか＋自然な言い換えは認識自体が成立していれば○寄り */
+function judge(a){
+  if(a.ai) return {b:`${a.ai.pass?"○ 通じた":"✕ 要練習"}（AI判定）`, cls:a.ai.pass?"hi":"lo", ratio:null};
+  if(!a.heard) return {b:"✕ 認識なし", cls:"lo", ratio:0};
+  const r = matchScore(a.en,a.heard);
+  if(r.ratio>=50) return {b:"○ 通じた", cls:"hi", ratio:r.ratio};
+  if(r.ratio>=20) return {b:"△ 惜しい", cls:"mid", ratio:r.ratio};
+  /* 語彙は違うが認識は成立 → 言い換え可能性。聞き取れた語数があれば△扱い */
+  return {b: words(a.heard).length>=2 ? "△ 言い換え？" : "✕ 要練習", cls: words(a.heard).length>=2 ? "mid":"lo", ratio:r.ratio};
+}
+function toast(text, cls){
+  const t = $("toast");
+  t.textContent = text;
+  t.style.color = cls==="hi"?"var(--mint)":cls==="mid"?"var(--amber)":"var(--red)";
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove("show"), 1400);
+}
+
+/* ---------- Gemini AI判定 ---------- */
+async function aiJudge(a){
+  const prompt =
+`You are an English teacher for Japanese learners. The student heard a Japanese prompt and answered in English.
+Japanese prompt: ${a.jp}
+Model answer: ${a.en}
+Student's answer (from speech recognition, may contain recognition errors): ${a.heard || "(nothing recognized)"}
+
+Judge whether the student's answer would communicate the meaning (通じるか), and whether it is correct, natural English. Minor wording differences from the model answer are GOOD if natural and correct. Reply ONLY with JSON:
+{"pass": true/false, "natural": 1-5, "feedback": "日本語で30字以内のフィードバック"}`;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(gkey)}`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      contents:[{parts:[{text:prompt}]}],
+      generationConfig:{temperature:0.2, responseMimeType:"application/json"}
+    })
+  });
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const data = await res.json();
+  const txt = data.candidates[0].content.parts[0].text;
+  return JSON.parse(txt);
+}
+
+/* ---------- 結果 ---------- */
+function finish(){
+  if(challengeOver){ return; }
+  challengeOver = true;
+  if(timerId){ clearInterval(timerId); timerId = null; }
+  if(recActive){ stopRec(); setTimeout(renderFinish, 1500); }
+  else renderFinish();
+  setRecUI(false);
+}
+function renderFinish(){
+  const m = Math.floor(tLeft/60), s = String(tLeft%60).padStart(2,"0");
+  let ok = 0;
+  answered.forEach(a=>{ if(judge(a).cls==="hi") ok++; });
+  $("sOk").textContent = ok;
+  $("sDone").textContent = answered.length;
+  $("sTotal").textContent = qQueue.length;
+  $("sTime").textContent = m+":"+s;
+  $("judgeNote").textContent = gkey
+    ? "AI判定（Gemini）を取得中… 画面が順次更新されます。"
+    : "判定はブラウザの音声認識と模範解答の一致による簡易判定です。編集タブでGemini APIキーを設定すると「通じるか・自然さ」のAI判定になります。";
+  renderResults();
+  switchView("result");
+  if(gkey) runAiJudge();
+}
+async function runAiJudge(){
+  for(const [k,a] of answered.entries()){
+    if(!a.heard || a.ai) continue;
+    try{
+      const r = await aiJudge(a);
+      a.ai = r;
+      updateRow(k, a);
+    }catch(e){
+      $("judgeNote").textContent = "AI判定でエラーが発生しました（"+e.message+"）。キーを確認してください。";
+      return;
+    }
+  }
+  if(answered.some(a=>a.ai)) $("judgeNote").textContent = "AI判定（Gemini）: 通じるか＋自然さで評価しました。";
+  renderFinishStats();
+}
+function renderFinishStats(){
+  const ok = answered.filter(a=>judge(a).cls==="hi").length;
+  $("sOk").textContent = ok;
+}
+function heardHtml(a){
+  if(a.heard){
+    const r = matchScore(a.en,a.heard);
+    return r.marks.map(m=>`<span class="${m.cls}">${m.w}</span>`).join(" ")
+      + (r.extras.length?` <span class="miss">（余分: ${r.extras.join(" ")}）</span>`:"");
+  }
+  if(a.srErr) return `<span class="miss">– 認識エラー(${a.srErr}) – 録音は再生できます。ネット接続を確認するか、Chromeで開いてください。</span>`;
+  return `<span class="miss">– 認識できませんでした（録音は再生できます）–</span>`;
+}
+function updateRow(k, a){
+  const box = $("resList");
+  const row = box.querySelector(`[data-idx="${k}"]`);
+  if(!row) return;
+  row.querySelector(".heard").innerHTML = heardHtml(a);
+  const badge = row.querySelector(".badge");
+  const v = judge(a);
+  badge.textContent = v.b; badge.className = "badge "+v.cls;
+  if(a.ai){
+    let note = row.querySelector(".ai-note");
+    if(!note){ note = document.createElement("div"); note.className="ai-note"; row.querySelector(".heard").after(note); }
+    note.innerHTML = `<b>AI:</b> 自然さ ${a.ai.natural}/5 — ${esc(a.ai.feedback||"")}`;
+  }
+}
+function renderResults(){
+  const box = $("resList"); box.innerHTML = "<h2>回答の評価</h2>";
+  if(!answered.length){
+    box.innerHTML += `<p class="muted">録音できたフレーズがありませんでした。「もう一度チャレンジ」でリトライできます。</p>`;
+    return;
+  }
+  answered.forEach((a,k)=>{
+    const v = judge(a);
+    const r = a.heard ? matchScore(a.en,a.heard) : null;
+    const row = document.createElement("div"); row.className="res-row"; row.dataset.idx = k;
+    const ctl = a.url
+      ? `<button class="mini" data-p="${k}">▶ 再生</button>
+         <a class="mini" href="${a.url}" download="phrase-${String(k+1).padStart(2,"0")}.${a.ext}">⬇ 録音を保存</a>`
+      : "";
+    row.innerHTML = `
+      <div class="res-top">
+        <span class="jp">${esc(a.jp)}</span>
+        <span class="badge ${v.cls}">${v.b}</span>
+        <span class="score ${v.cls}">${r? r.ratio+"%":"–"}</span>
+      </div>
+      <div class="res-en">模範解答: ${esc(a.en)}</div>
+      <div class="heard">${heardHtml(a)}</div>
+      <div class="res-ctl">${ctl}</div>`;
+    const pb = row.querySelector("button");
+    if(pb) pb.onclick = ()=>{ new Audio(a.url).play(); };
+    box.appendChild(row);
+  });
+}
+$("againBtn").onclick = ()=>{
+  $("setup").classList.remove("hidden"); $("stage").classList.add("hidden");
+  switchView("play");
+};
+
+/* 起動時 */
+renderList();
+loadKey();
+</script>
+</body>
+</html>
