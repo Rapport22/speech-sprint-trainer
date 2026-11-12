@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.3</span>
+  <span class="ver">v2.4</span>
 </header>
 
 <nav>
@@ -621,8 +621,29 @@ function vadLoop(){
 }
 
 /* ---------- 判定 ---------- */
+/* 縮約の展開＋同義表現の正規化（キーなし簡易判定の精度向上） */
+const CONTRACTIONS = {
+  "i'm":"i am","i'll":"i will","i'd":"i would","i've":"i have",
+  "don't":"do not","doesn't":"does not","can't":"cannot","couldn't":"could not",
+  "wouldn't":"would not","won't":"will not","isn't":"is not","aren't":"are not",
+  "what's":"what is","where's":"where is","that's":"that is","it's":"it is","let's":"let us"
+};
+const CANON = {
+  "thanks":"thank you",
+  "so":"very",
+  "restroom":"bathroom","toilet":"bathroom","washroom":"bathroom","lavatory":"bathroom",
+  "photo":"picture","pics":"picture",
+  "train":"train","receipt":"receipt"
+};
 function words(s){
-  return (s||"").toLowerCase().replace(/[^a-z' ]+/g," ").split(/\s+/).filter(Boolean);
+  const raw = (s||"").toLowerCase().replace(/[^a-z' ]+/g," ").split(/\s+/).filter(Boolean);
+  const out = [];
+  for(const w of raw){
+    if(CONTRACTIONS[w]){ out.push(...CONTRACTIONS[w].split(" ")); }
+    else if(CANON[w]){ out.push(...CANON[w].split(" ")); }
+    else out.push(w);
+  }
+  return out;
 }
 function matchScore(expected, heard){
   const E = words(expected), H = words(heard);
