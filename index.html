@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.0</span>
+  <span class="ver">v2.1</span>
 </header>
 
 <nav>
@@ -288,12 +288,13 @@ let qQueue = [], qIdx = 0, answered = [], tLeft = 0, timerId = null, tStart = 0,
 let mediaStream = null, recorder = null, chunks = [], recognition = null, recActive = false;
 let curTranscript = "", srErr = "";
 let challengeOver = false;
+let srEndCb = null;
 let autoMode = true;
 /* VAD */
 let audioCtx = null, analyser = null, vadBuf = null, vadTimer = null;
 let vadState = "idle"; // idle | armed | talking | processing
 let onFrames = 0, offFrames = 0, talkStart = 0;
-const VAD_ON = 0.055, VAD_OFF = 0.035, VAD_SILENCE_MS = 1200, VAD_MAX_MS = 15000;
+const VAD_ON = 0.055, VAD_OFF = 0.035, VAD_SILENCE_MS = 1800, VAD_MAX_MS = 20000;
 /* AI判定 */
 let gkey = "";
 
@@ -463,6 +464,7 @@ async function startRec(){
   chunks = []; curTranscript = ""; srErr = "";
   $("liveHeard").textContent = "";
   let recDone = false, srDone = !SR, finalized = false, blob = null;
+  srEndCb = ()=>{ srDone = true; tryFin(); };
   const tryFin = ()=>{
     if(finalized || !recDone || !srDone) return;
     finalized = true;
@@ -477,23 +479,48 @@ async function startRec(){
   recActive = true; setRecUI(true);
   $("recLbl").textContent = "録音中…（タップで早送り確定）";
   if(SR){
-    try{
-      recognition = new SR();
-      recognition.lang = "en-US";
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-      recognition.onresult = e=>{
-        let t = "";
-        for(let i=0;i<e.results.length;i++) t += e.results[i][0].transcript;
-        curTranscript = t;
-        $("liveHeard").textContent = t ? "認識中: " + t : "";
-      };
-      recognition.onerror = e=>{ srErr = e.error || "error"; srDone = true; tryFin(); };
-      recognition.onend   = ()=>{ srDone = true; tryFin(); };
-      recognition.start();
-    }catch(e){ srDone = true; tryFin(); }
+    startRecognition();
   }
+}
+
+/* 認識エンジン（連続モード：切れても自動再開して聞き逃さない） */
+let srRestarts = 0;
+function startRecognition(){
+  try{
+    recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = e=>{
+      // 確定した文だけを累積（途中結果は表示のみ）
+      let interim = "";
+      for(let i=0;i<e.results.length;i++){
+        const r = e.results[i];
+        if(r.isFinal){
+          const t = r[0].transcript.trim();
+          if(t && !curTranscript.endsWith(t)){
+            curTranscript = (curTranscript ? curTranscript + " " : "") + t;
+            srRestarts = 0;
+          }
+        } else interim += r[0].transcript;
+      }
+      $("liveHeard").textContent = (curTranscript + " " + interim).trim() ? "認識中: " + (curTranscript + " " + interim).trim() : "";
+    };
+    recognition.onerror = e=>{
+      if(e.error === "no-speech" || e.error === "aborted") return; // 再開待ち
+      srErr = e.error || "error";
+    };
+    recognition.onend = ()=>{
+      if(recActive && srRestarts < 6){
+        srRestarts++;
+        try{ recognition.start(); }catch(err){}
+      } else {
+        srEndCb && srEndCb();
+      }
+    };
+    recognition.start();
+  }catch(e){}
 }
 
 function stopRec(){
@@ -502,6 +529,8 @@ function stopRec(){
   $("recLbl").textContent = "判定中…";
   try{ recognition && recognition.stop(); }catch(e){}
   try{ recorder && recorder.state !== "inactive" && recorder.stop(); }catch(e){}
+  // 保険：認識エンジンが終了通知を出さない環境でも2秒後に必ず確定
+  setTimeout(()=>{ srEndCb && srEndCb(); }, 2000);
 }
 
 function commitAnswer(q, blob, heard, err){
@@ -618,13 +647,17 @@ function toast(text, cls){
 /* ---------- Gemini AI判定 ---------- */
 async function aiJudge(a){
   const prompt =
-`You are an English teacher for Japanese learners. The student heard a Japanese prompt and answered in English.
+`You are an English teacher for Japanese learners. The student saw a Japanese prompt and answered in English.
 Japanese prompt: ${a.jp}
-Model answer: ${a.en}
-Student's answer (from speech recognition, may contain recognition errors): ${a.heard || "(nothing recognized)"}
+Model answer (ONE example translation, not the only correct answer): ${a.en}
+Student's answer (from speech recognition, may contain small recognition errors): ${a.heard || "(nothing recognized)"}
 
-Judge whether the student's answer would communicate the meaning (通じるか), and whether it is correct, natural English. Minor wording differences from the model answer are GOOD if natural and correct. Reply ONLY with JSON:
-{"pass": true/false, "natural": 1-5, "feedback": "日本語で30字以内のフィードバック"}`;
+Rules:
+- The student's answer does NOT need to match the model answer. Any English that naturally and correctly conveys the Japanese meaning PASSES.
+- Ignore likely speech-recognition typos (e.g. "toilet is where" for "Where is the restroom?" still passes if meaning is clear).
+- Only fail the answer if the meaning is wrong, incomplete, or unintelligible.
+Reply ONLY with JSON:
+{"pass": true/false, "natural": 1-5, "feedback": "日本語で30字以内のフィードバック。減点がある場合は何を直すか具体的に"}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(gkey)}`,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
