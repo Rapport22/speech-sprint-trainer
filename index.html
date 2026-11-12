@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.9</span>
+  <span class="ver">v3.0</span>
 </header>
 
 <nav>
@@ -194,21 +194,8 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
     </div>
   </div>
   <div class="card">
-    <h2>AI判定（任意）</h2>
-    <p class="muted" style="margin-bottom:10px">
-      Gemini APIキーを設定すると、判定が「通じるか・自然な英語か」のAI評価になります（各回答に日本語のフィードバック付き）。<br>
-      無料で取得できます: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--amber)">Google AI Studio でキーを作成</a> → 下に貼り付け。
-      未設定の場合は、音声認識の結果から「通じた／惜しい／要練習」を簡易判定します。
-    </p>
-    <div class="field">
-      <label>GEMINI API KEY（保存時にマスクされます）</label>
-      <input type="password" id="gkey" placeholder="AIza..." autocomplete="off" style="font-family:monospace">
-    </div>
-    <label class="chk"><input type="checkbox" id="gkeyShow"> キーを表示（設定時のみチェック）</label>
-    <div class="field" style="margin-top:14px">
-      <label>AI判定サーバーURL（中継方式：設定すればキー欄は不要）</label>
-      <input type="text" id="gserver" placeholder="https://xxxx.workers.dev" autocomplete="off" style="font-family:monospace">
-    </div>
+    <h2>AI判定 <span class="tag">AUTO</span></h2>
+    <p class="muted">すべての回答をAIが「通じるか・自然な英語か」で判定し、発音・リズム・メロディなどの総合評価と日本語フィードバックを付けます。設定は不要です。</p>
   </div>
   <div style="text-align:right">
     <button class="btn amber" id="goPlay">チャレンジへ →</button>
@@ -347,11 +334,9 @@ function saveLocal(){
 }
 function loadKey(){
   try{ gkey = localStorage.getItem("sprint_gkey") || ""; }catch(e){ gkey=""; }
-  if(gkey)$("gkey").value=gkey;
-  try{ gserver = localStorage.getItem("sprint_aiserver") || AI_SERVER_DEFAULT; }catch(e){ gserver = AI_SERVER_DEFAULT || ""; }
-  if(gserver)$("gserver").value=gserver;
+  gserver = AI_SERVER_DEFAULT;
 }
-function saveKey(){ try{ localStorage.setItem("sprint_gkey", gkey); }catch(e){} }
+
 
 /* ---------- 編集画面 ---------- */
 function renderList(){
@@ -384,9 +369,7 @@ $("fileIn").onchange = e=>{
     }catch(err){ alert("読み込みに失敗しました"); } };
   r.readAsText(f);
 };
-$("gkey").addEventListener("input",e=>{ gkey = e.target.value.trim(); saveKey(); });
-$("gkeyShow").addEventListener("change",e=>{ $("gkey").type = e.target.checked ? "text" : "password"; });
-$("gserver").addEventListener("input",e=>{ gserver = e.target.value.trim(); try{ localStorage.setItem("sprint_aiserver",gserver); }catch(err){} });
+
 $("goPlay").onclick = ()=>{
   const valid = phrases.filter(p=>p[0].trim()&&p[1].trim());
   if(valid.length<1){ alert("日本語と英語が両方入力されたフレーズを1つ以上用意してください"); return; }
@@ -723,7 +706,7 @@ Reply ONLY with JSON:
       body: JSON.stringify({jp:a.jp, en:a.en, heard:a.heard||""})
     });
   }else{
-    if(!gkey) throw new Error("キー未設定");
+    if(!gkey) throw new Error("サーバー接続不可");
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(gkey)}`,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -756,9 +739,7 @@ function renderFinish(){
   $("sDone").textContent = answered.length;
   $("sTotal").textContent = qQueue.length;
   $("sTime").textContent = m+":"+s;
-  $("judgeNote").textContent = (gserver || gkey)
-    ? "AI判定を取得中… 画面が順次更新されます。"
-    : "判定はブラウザの音声認識と模範解答の一致による簡易判定です。AI判定（通じるか・自然さ）を使うにはAI判定サーバーまたはGemini APIキーの設定が必要です。";
+  $("judgeNote").textContent = "AI判定を取得中… 画面が順次更新されます。";
   renderResults();
   switchView("result");
   if(gkey) runAiJudge();
@@ -771,9 +752,7 @@ async function runAiJudge(){
       a.ai = r;
       updateRow(k, a);
     }catch(e){
-      const msg = e.message==="キー未設定"
-        ? "AI判定サーバーまたはGemini APIキーが設定されていません。"
-        : "AI判定でエラーが発生しました（"+e.message+"）。";
+      const msg = "AI判定でエラーが発生しました（"+e.message+"）。";
       $("judgeNote").textContent = msg + (e.message.includes("429") ? " 無料枠の1日上限に達した可能性があります。" : "");
       return;
     }
