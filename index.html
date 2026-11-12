@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.8</span>
+  <span class="ver">v2.9</span>
 </header>
 
 <nav>
@@ -300,7 +300,7 @@ let autoMode = true;
 let audioCtx = null, analyser = null, vadBuf = null, vadTimer = null;
 let vadState = "idle"; // idle | armed | talking | processing
 let onFrames = 0, offFrames = 0, talkStart = 0;
-let lastResultAt = 0, lastInterim = "";
+let lastResultAt = 0, lastInterim = "", lastFinal = "";
 const VAD_ON = 0.055, VAD_OFF = 0.035, VAD_SILENCE_MS = 1800, VAD_MAX_MS = 20000;
 const SR_IDLE_MS = 1500; // 認識イベントが止まってから次へ進むまでの時間
 /* AI判定 */
@@ -522,15 +522,13 @@ function startRecognition(){
         const r = e.results[i];
         if(r.isFinal){
           const t = r[0].transcript.trim();
-          if(t && !curTranscript.endsWith(t)){
-            curTranscript = (curTranscript ? curTranscript + " " : "") + t;
-            srRestarts = 0;
-          }
+          if(t) { lastFinal = t; srRestarts = 0; } // 言い直し対応：常に最後の1文だけ保持
         } else interim += r[0].transcript;
       }
       lastInterim = interim;
       lastResultAt = Date.now();
-      $("liveHeard").textContent = (curTranscript + " " + interim).trim() ? "認識中: " + (curTranscript + " " + interim).trim() : "";
+      curTranscript = lastFinal;
+      $("liveHeard").textContent = (curTranscript + " " + interim).trim() ? "🎙 あなたの英語（認識結果）: " + (curTranscript + " " + interim).trim() : "";
     };
     recognition.onerror = e=>{
       if(e.error === "no-speech" || e.error === "aborted") return; // 再開待ち
@@ -790,7 +788,8 @@ function renderFinishStats(){
 function heardHtml(a){
   if(a.heard){
     const r = matchScore(a.en,a.heard);
-    return r.marks.map(m=>`<span class="${m.cls}">${m.w}</span>`).join(" ")
+    return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（AIの聞き取り）</div>`
+      + r.marks.map(m=>`<span class="${m.cls}">${m.w}</span>`).join(" ")
       + (r.extras.length?` <span class="miss">（こうも聞こえています: ${r.extras.join(" ")}）</span>`:"");
   }
   if(a.srErr) return `<span class="miss">– 認識エラー(${a.srErr}) – 録音は再生できます。ネット接続を確認するか、Chromeで開いてください。</span>`;
