@@ -720,7 +720,7 @@ Reply ONLY with JSON:
     });
   }else{
     if(!gkey) throw new Error("キー未設定");
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(gkey)}`,{
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(gkey)}`,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
