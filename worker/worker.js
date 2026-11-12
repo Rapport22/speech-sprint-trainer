@@ -54,7 +54,8 @@ export default {
       }
     );
     if (!r.ok) {
-      return cors(new Response(JSON.stringify({ error: "upstream " + r.status }), { status: 502, headers: { "Content-Type": "application/json" } }));
+      const detail = await r.text();
+      return cors(new Response(JSON.stringify({ error: "upstream " + r.status, detail: detail.slice(0,500) }), { status: 502, headers: { "Content-Type": "application/json" } }));
     }
     const data = await r.json();
     let out;
