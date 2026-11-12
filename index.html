@@ -161,7 +161,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v2.7b</span>
+  <span class="ver">v2.8</span>
 </header>
 
 <nav>
@@ -699,17 +699,23 @@ function toast(text, cls){
 /* ---------- Gemini AI判定（中継サーバー優先・キー直はフォールバック） ---------- */
 async function aiJudge(a){
   const prompt =
-`You are an English teacher for Japanese learners. The student saw a Japanese prompt and answered in English.
+`You are an English pronunciation and speaking coach for Japanese learners. The student saw a Japanese prompt and answered in English. You received the speech-recognition transcript of their answer, and you must judge it as a COACH.
+
 Japanese prompt: ${a.jp}
 Model answer (ONE example translation, not the only correct answer): ${a.en}
-Student's answer (from speech recognition, may contain small recognition errors): ${a.heard || "(nothing recognized)"}
+Speech-recognition transcript (may contain recognition errors, e.g. similar-sounding words): ${a.heard || "(nothing recognized)"}
 
-Rules:
-- The student's answer does NOT need to match the model answer. Any English that naturally and correctly conveys the Japanese meaning PASSES.
-- Ignore likely speech-recognition typos (e.g. "toilet is where" for "Where is the restroom?" still passes if meaning is clear).
-- Only fail the answer if the meaning is wrong, incomplete, or unintelligible.
+Judge on TWO layers:
+1. Meaning: Does the answer convey the Japanese meaning? It does NOT need to match the model answer. Any natural, correct English that communicates the meaning passes. Ignore likely recognition errors (similar-sounding words like restaurant/restroom).
+2. Speaking quality (0-5 each), inferred from the transcript pattern AND from what the recognition errors imply about the student's pronunciation:
+   - pronunciation: sounds that were likely mispronounced if the recognizer heard a different English word
+   - rhythm: word stress and content/function word balance
+   - liaison: linking between words (a stiff word-by-word delivery often yields fragmented transcripts)
+   - intonation: sentence melody, rising/falling patterns
+   - speed: too fast/slow or even pace is inferable from omissions and errors
+
 Reply ONLY with JSON:
-{"pass": true/false, "natural": 1-5, "feedback": "日本語で30字以内のフィードバック。減点がある場合は何を直すか具体的に"}`;
+{"pass": true/false, "natural": 1-5, "feedback": "日本語で40字以内。意味と発音の総括。直すべき点を具体的に", "skills": {"pronunciation": 0-5, "rhythm": 0-5, "liaison": 0-5, "intonation": 0-5, "speed": 0-5}}`;
   let res;
   if(gserver){
     /* 中継サーバー方式：キーはサーバー側のみ */
@@ -785,7 +791,7 @@ function heardHtml(a){
   if(a.heard){
     const r = matchScore(a.en,a.heard);
     return r.marks.map(m=>`<span class="${m.cls}">${m.w}</span>`).join(" ")
-      + (r.extras.length?` <span class="miss">（余分: ${r.extras.join(" ")}）</span>`:"");
+      + (r.extras.length?` <span class="miss">（こうも聞こえています: ${r.extras.join(" ")}）</span>`:"");
   }
   if(a.srErr) return `<span class="miss">– 認識エラー(${a.srErr}) – 録音は再生できます。ネット接続を確認するか、Chromeで開いてください。</span>`;
   return `<span class="miss">– 認識できませんでした（録音は再生できます）–</span>`;
@@ -801,7 +807,12 @@ function updateRow(k, a){
   if(a.ai){
     let note = row.querySelector(".ai-note");
     if(!note){ note = document.createElement("div"); note.className="ai-note"; row.querySelector(".heard").after(note); }
-    note.innerHTML = `<b>AI:</b> 自然さ ${a.ai.natural}/5 — ${esc(a.ai.feedback||"")}`;
+    const sk = a.ai.skills || {};
+    const SK_LABELS = {pronunciation:"発音",rhythm:"強弱・リズム",liaison:"リエゾン",intonation:"メロディ",speed:"スピード"};
+    const skillsHtml = Object.keys(SK_LABELS).filter(k=>sk[k]!=null)
+      .map(k=>`<span style="margin-right:10px;white-space:nowrap">${SK_LABELS[k]} <b style="color:var(--amber)">${"●".repeat(+sk[k])}${"○".repeat(5-+sk[k])}</b></span>`).join("");
+    note.innerHTML = `<b>AI:</b> 自然さ ${a.ai.natural}/5 — ${esc(a.ai.feedback||"")}`
+      + (skillsHtml ? `<div style="margin-top:6px;font-size:12.5px;color:var(--dim)">${skillsHtml}</div>` : "");
   }
 }
 function renderResults(){

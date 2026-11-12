@@ -1,17 +1,23 @@
 // Cloudflare Worker: Gemini判定の中継サーバー（キーはここだけで保持）
 // デプロイ手順は README-workspace.md / セットアップガイド参照
 
-const PROMPT_TMPL = (jp, en, heard) => `You are an English teacher for Japanese learners. The student saw a Japanese prompt and answered in English.
+const PROMPT_TMPL = (jp, en, heard) => `You are an English pronunciation and speaking coach for Japanese learners. The student saw a Japanese prompt and answered in English. You received the speech-recognition transcript of their answer, and you must judge it as a COACH.
+
 Japanese prompt: ${jp}
 Model answer (ONE example translation, not the only correct answer): ${en}
-Student's answer (from speech recognition, may contain small recognition errors): ${heard || "(nothing recognized)"}
+Speech-recognition transcript (may contain recognition errors, e.g. similar-sounding words): ${heard || "(nothing recognized)"}
 
-Rules:
-- The student's answer does NOT need to match the model answer. Any English that naturally and correctly conveys the Japanese meaning PASSES.
-- Ignore likely speech-recognition typos.
-- Only fail the answer if the meaning is wrong, incomplete, or unintelligible.
+Judge on TWO layers:
+1. Meaning: Does the answer convey the Japanese meaning? It does NOT need to match the model answer. Any natural, correct English that communicates the meaning passes. Ignore likely recognition errors (similar-sounding words like restaurant/restroom).
+2. Speaking quality (0-5 each), inferred from the transcript pattern AND from what the recognition errors imply about the student's pronunciation:
+   - pronunciation: sounds that were likely mispronounced if the recognizer heard a different English word
+   - rhythm: word stress and content/function word balance
+   - liaison: linking between words (a stiff word-by-word delivery often yields fragmented transcripts)
+   - intonation: sentence melody, rising/falling patterns
+   - speed: too fast/slow or even pace is inferable from omissions and errors
+
 Reply ONLY with JSON:
-{"pass": true/false, "natural": 1-5, "feedback": "日本語で30字以内のフィードバック。減点がある場合は何を直すか具体的に"}`;
+{"pass": true/false, "natural": 1-5, "feedback": "日本語で40字以内。意味と発音の総括。直すべき点を具体的に", "skills": {"pronunciation": 0-5, "rhythm": 0-5, "liaison": 0-5, "intonation": 0-5, "speed": 0-5}}`;
 
 function cors(res) {
   res.headers.set("Access-Control-Allow-Origin", "*");
