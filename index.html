@@ -115,11 +115,12 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 .air.live{color:var(--red)}
 .air.live i{background:var(--red);box-shadow:0 0 8px var(--red)}
 .toast{
-  position:fixed;left:50%;top:18%;transform:translateX(-50%) scale(.9);
-  background:var(--panel2);border:1px solid var(--line);border-radius:99px;
-  padding:10px 22px;font:900 16px 'Zen Maru Gothic';opacity:0;pointer-events:none;
-  transition:.2s;z-index:9;
+  position:fixed;left:50%;top:14%;transform:translateX(-50%) scale(.9);
+  background:var(--panel2);border:1px solid var(--line);border-radius:14px;
+  padding:12px 22px;font:900 16px 'Zen Maru Gothic';opacity:0;pointer-events:none;
+  transition:.2s;z-index:9;max-width:88vw;text-align:center;
 }
+.toast .adv{display:block;font:700 12.5px 'Zen Maru Gothic';color:var(--dim);margin-top:4px}
 .toast.show{opacity:1;transform:translateX(-50%) scale(1)}
 /* ---------- 結果 ---------- */
 .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px}
@@ -161,7 +162,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v3.2</span>
+  <span class="ver">v3.3</span>
 </header>
 
 <nav>
@@ -438,9 +439,9 @@ function showQ(){
   $("qNo").textContent = `QUESTION ${qIdx+1} / ${qQueue.length}`;
   $("qJp").textContent = q[0];
   setRecUI(false);
-  curTranscript = ""; srErr = "";
-  lastInterim = ""; lastResultAt = Date.now();
-  $("liveHeard").textContent = "";
+  curTranscript = ""; srErr = ""; lastInterim = ""; lastFinal = "";
+  lastResultAt = Date.now();
+  $("liveHeard").innerHTML = "";
   if(autoMode){
     /* 常時録音方式：問題表示と同時に録音・認識を開始（頭切れ防止） */
     armVAD();
@@ -468,8 +469,8 @@ async function startRec(){
   try{ stream = await ensureMic(); }
   catch(e){ $("warnMic").classList.add("show"); return; }
   const q = qQueue[qIdx]; if(!q) return;
-  chunks = []; curTranscript = ""; srErr = "";
-  $("liveHeard").textContent = "";
+  chunks = []; curTranscript = ""; srErr = ""; lastInterim = ""; lastFinal = "";
+  $("liveHeard").innerHTML = "";
   let recDone = false, srDone = !SR, finalized = false, blob = null;
   srEndCb = ()=>{ srDone = true; tryFin(); };
   const tryFin = ()=>{
@@ -495,6 +496,10 @@ let srRestarts = 0;
 function startRecognition(){
   try{
     recognition = new SR();
+    recognition.onstart = ()=>{
+      curTranscript = ""; lastInterim = "";
+      $("liveHeard").textContent = "";
+    };
     recognition.lang = "en-US";
     recognition.interimResults = true;
     recognition.continuous = true;
@@ -511,7 +516,7 @@ function startRecognition(){
       lastInterim = interim;
       lastResultAt = Date.now();
       curTranscript = lastFinal;
-      $("liveHeard").textContent = (curTranscript + " " + interim).trim() ? "🎙 あなたの英語（認識結果）: " + (curTranscript + " " + interim).trim() : "";
+      renderLive(curTranscript, interim);
     };
     recognition.onerror = e=>{
       if(e.error === "no-speech" || e.error === "aborted") return; // 再開待ち
@@ -539,6 +544,25 @@ function stopRec(){
   setTimeout(()=>{ srEndCb && srEndCb(); }, 2000);
 }
 
+/* ライブ表示: 認識中の英語を模範解答と照合し、単語単位で色分け */
+function renderLive(finalTxt, interimTxt){
+  const full = (finalTxt + " " + interimTxt).trim();
+  if(!full){ $("liveHeard").innerHTML = ""; return; }
+  const q = qQueue[qIdx];
+  let html;
+  if(q){
+    const r = matchScore(q[1], full);
+    const markMap = {};
+    r.marks.forEach(m=>{ if(!(m.w in markMap) || markMap[m.w]==="ok") markMap[m.w]=m.cls; });
+    html = full.split(/\s+/).map(w=>{
+      const base = w.toLowerCase().replace(/[^a-z']/g,"");
+      const cls = markMap[base]==="ok" ? "ok" : (base ? "ng" : "");
+      return cls ? `<span class="${cls}">${esc(w)}</span>` : esc(w);
+    }).join(" ");
+  } else html = esc(full);
+  $("liveHeard").innerHTML = `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語 <span style="color:var(--dim)">（<span class="ok">緑</span>=正確 / <span class="ng">赤</span>=聞き取りが違う）</span></div><div style="font-size:14.5px">${html}</div>`;
+}
+
 function commitAnswer(q, blob, heard, err){
   const hasAudio = !!(blob && blob.size > 0);
   answered.push({
@@ -548,9 +572,12 @@ function commitAnswer(q, blob, heard, err){
   });
   qIdx++;
   if(challengeOver){ renderFinish(); return; }
-  /* 簡易判定をトースト表示 */
-  const v = judge(answered[answered.length-1]);
-  toast(v.b, v.cls);
+  /* 一言アドバイス付きトースト */
+  const a = answered[answered.length-1];
+  const v = judge(a);
+  const r = matchScore(a.en, a.heard);
+  const advice = quickAdvice(a, r);
+  toast(v.b + " " + (a.heard ? Math.round(r.ratio) + "%" : ""), v.cls, advice);
   if(autoMode){
     vadState = "processing";
     setTimeout(showQ, 500);
@@ -668,13 +695,23 @@ function judge(a){
   /* 語彙は違うが認識は成立 → 言い換え可能性。聞き取れた語数があれば△扱い */
   return {b: words(a.heard).length>=2 ? "△ 言い換え？" : "✕ 要練習", cls: words(a.heard).length>=2 ? "mid":"lo", ratio:r.ratio};
 }
-function toast(text, cls){
+/* 語彙一致から一言アドバイスを生成（AI判定のfeedbackがあればそちらを優先） */
+function quickAdvice(a, r){
+  if(a.ai && a.ai.feedback) return a.ai.feedback;
+  if(!a.heard) return "もう一度はっきり言ってみよう";
+  if(r.ratio>=80) return "完璧！その調子";
+  const missed = r.marks.filter(m=>m.cls==="miss").map(m=>m.w);
+  if(missed.length && r.ratio>=50) return `「${missed[0]}」が聞こえにくかったかも`;
+  if(r.extras.length) return `「${r.extras[0]}」と聞こえたら、言い直してみよう`;
+  return "ゆっくりはっきり言うと通じるよ";
+}
+function toast(text, cls, advice){
   const t = $("toast");
-  t.textContent = text;
+  t.innerHTML = esc(text) + (advice ? `<span class="adv">${esc(advice)}</span>` : "");
   t.style.color = cls==="hi"?"var(--mint)":cls==="mid"?"var(--amber)":"var(--red)";
   t.classList.add("show");
   clearTimeout(t._h);
-  t._h = setTimeout(()=>t.classList.remove("show"), 1400);
+  t._h = setTimeout(()=>t.classList.remove("show"), advice ? 2600 : 1400);
 }
 
 /* ---------- Gemini AI判定（中継サーバー優先・キー直はフォールバック） ---------- */
