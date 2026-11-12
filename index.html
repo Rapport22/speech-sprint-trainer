@@ -162,7 +162,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v3.5</span>
+  <span class="ver">v3.6</span>
 </header>
 
 <nav>
@@ -811,18 +811,44 @@ function renderFinishStats(){
   const ok = answered.filter(a=>judge(a).cls==="hi").length;
   $("sOk").textContent = ok;
 }
+function heardWordsColored(a){
+  /* 生徒が言った英語（heard側）の単語を、模範解答との照合で緑/赤に色分き */
+  const E = words(a.en), H = words(a.heard);
+  const dp = Array.from({length:E.length+1},()=>new Array(H.length+1).fill(0));
+  for(let i=1;i<=E.length;i++)for(let j=1;j<=H.length;j++)
+    dp[i][j] = E[i-1]===H[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j],dp[i][j-1]);
+  const hitH = new Array(H.length).fill(false);
+  let i=E.length, j=H.length;
+  while(i>0&&j>0){
+    if(E[i-1]===H[j-1]){ hitH[j-1]=true; i--;j--; }
+    else if(dp[i-1][j]>=dp[i][j-1]){ i--; }
+    else { j--; }
+  }
+  return H;
+}
 function heardHtml(a){
   if(a.heard){
-    /* 生徒の英語を単語単位で色分き（%の根拠そのもの）+ 一言アドバイス */
+    /* 生徒の英語そのものを、単語ごとに緑(正確)/赤(ズレ)で色分き + 一言アドバイス */
     const r = matchScore(a.en,a.heard);
-    const marksHtml = r.marks.map(m=>`<span class="${m.cls}">${esc(m.w)}</span>`).join(" ");
+    const H = words(a.heard);
+    const hit = heardWordsColored(a);
+    const raw = a.heard.split(/\s+/);
+    /* 色は正規化語、表示は生徒の原語の順で */
+    let k = 0;
+    const colored = raw.map(w=>{
+      const base = w.toLowerCase().replace(/[^a-z' ]/g,"").trim();
+      if(!base) return esc(w);
+      const cls = hit[k] ? "ok" : "ng";
+      k++;
+      return `<span class="${cls}">${esc(w)}</span>`;
+    }).join(" ");
     const missed = r.marks.filter(m=>m.cls==="miss").map(m=>m.w);
     const adv = (a.ai && a.ai.feedback) ? a.ai.feedback
       : (r.ratio>=80 ? "完璧！その調子"
         : missed.length && r.ratio>=50 ? `「${missed[0]}」が聞こえにくかったかも`
         : "ゆっくりはっきり言うと通じるよ");
-    return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（<span class="ok">緑</span>=正確 / <span class="ng">赤</span>=聞き取りが違う → ${r.ratio}%の内訳）</div>`
-      + `<div style="font-size:14.5px">${marksHtml}</div>`
+    return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（<span class="ok">緑</span>=正確 / <span class="ng">赤</span>=聞き取りがズレた → ${r.ratio}%の内訳）</div>`
+      + `<div style="font-size:14.5px">${colored}</div>`
       + `<div style="margin-top:6px;font-size:12.5px;color:var(--dim)">💡 ${esc(adv)}</div>`;
   }
   if(a.srErr) return `<span class="miss">– 認識エラー(${a.srErr}) – 録音は再生できます。ネット接続を確認するか、Chromeで開いてください。</span>`;
