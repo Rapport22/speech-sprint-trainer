@@ -42,20 +42,26 @@ export default {
     if (!heard || !heard.trim()) {
       return cors(new Response(JSON.stringify({ pass: false, natural: 1, feedback: "回答が聞き取れませんでした" }), { headers: { "Content-Type": "application/json" } }));
     }
-    const r = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: PROMPT_TMPL(jp || "", en, heard) }] }],
-          generationConfig: { temperature: 0.2, responseMimeType: "application/json" }
-        })
-      }
-    );
+    const MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.0-flash"];
+    let r = null, lastDetail = "";
+    for (const model of MODELS) {
+      r = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_KEY },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: PROMPT_TMPL(jp || "", en, heard) }] }],
+            generationConfig: { temperature: 0.2, responseMimeType: "application/json" }
+          })
+        }
+      );
+      if (r.ok) break;
+      lastDetail = (await r.text()).slice(0, 300);
+      if (r.status === 400) break; // キー権限系はリトライ不要
+    }
     if (!r.ok) {
-      const detail = await r.text();
-      return cors(new Response(JSON.stringify({ error: "upstream " + r.status, detail: detail.slice(0,500) }), { status: 502, headers: { "Content-Type": "application/json" } }));
+      return cors(new Response(JSON.stringify({ error: "upstream " + r.status, detail: lastDetail }), { status: 502, headers: { "Content-Type": "application/json" } }));
     }
     const data = await r.json();
     let out;
