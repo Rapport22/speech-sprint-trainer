@@ -162,7 +162,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 <header>
   <div class="lamp" id="lamp"><span class="core"></span></div>
   <h1><small>SPEECH SPRINT TRAINER</small>スピード発話トレーナー</h1>
-  <span class="ver">v3.7</span>
+  <span class="ver">v3.8</span>
 </header>
 
 <nav>
@@ -631,7 +631,7 @@ function vadLoop(){
   } else if(vadState === "talking"){
     /* 絶対安全網: 問題を表示してから90秒経ったら強制で次へ（無音問題・認識停止対策） */
     if(Date.now()-qShownAt > 12000){ lastInterim=""; stopRec(); vadState = "processing"; return; }
-    if(!heardSomething && Date.now()-qShownAt > 2000){ lastInterim=""; stopRec(); vadState = "processing"; return; }
+    if(!heardSomething && Date.now()-qShownAt > 5000){ lastInterim=""; stopRec(); vadState = "processing"; return; }
     /* 話しすぎキャップ */
     if(recActive && Date.now()-talkStart > VAD_MAX_MS){ stopRec(); vadState="processing"; return; }
     /* 主トリガー：認識エンジンが新しい言葉を受け付けなくなって1.5秒 → 確定して次へ
@@ -829,35 +829,54 @@ function heardWordsColored(a){
   return H;
 }
 function heardHtml(a){
-  if(a.heard){
-    /* 生徒の英語そのものを、単語ごとに緑(正確)/赤(ズレ)で色分き + 一言アドバイス */
-    const r = matchScore(a.en,a.heard);
-    const H = words(a.heard);
-    const hit = heardWordsColored(a);
-    const raw = a.heard.split(/\s+/);
-    /* 色は正規化語、表示は生徒の原語の順で */
-    let k = 0;
-    const colored = raw.map(w=>{
-      const base = w.toLowerCase().replace(/[^a-z' ]/g,"").trim();
-      if(!base) return esc(w);
-      const cls = hit[k] ? "ok" : "ng";
-      k++;
-      return `<span class="${cls}">${esc(w)}</span>`;
-    }).join(" ");
-    const missed = r.marks.filter(m=>m.cls==="miss").map(m=>m.w);
-    const fw = (a.ai && a.ai.focus_word) || (missed.length ? missed[0] : "");
-    const advRaw = (a.ai && a.ai.feedback)
-      ? esc(a.ai.feedback)
-      : (r.ratio>=80 ? "完璧！その調子"
-        : fw ? `「${fw}」が聞こえにくい`
-        : "もう一回言ってみよう");
-    const adv = fw ? advRaw.replace(esc(fw), `<b style="color:var(--red)">${esc(fw)}</b>`) : advRaw;
-    return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 あなたの英語（<span class="ok">緑</span>=正確 / <span class="ng">赤</span>=聞き取りがズレた → ${r.ratio}%の内訳）</div>`
-      + `<div style="font-size:14.5px">${colored}</div>`
-      + `<div style="margin-top:6px;font-size:12.5px;color:var(--dim)">💡 ${esc(adv)}</div>`;
+  /* 表示: ①聞き取れた英語そのもの → ②生徒が言おうとした正解英語（日本語訳からAI/簡易推定）→ ③差分
+     緑=正しく聞こえた語 / 赤=ズレた語 / 赤■=抜けている語 */
+  const r = matchScore(a.en, a.heard);
+  const E = words(a.en), H = words(a.heard);
+
+  /* heard側のヒット配列 */
+  const dp = Array.from({length:E.length+1},()=>new Array(H.length+1).fill(0));
+  for(let i=1;i<=E.length;i++)for(let j=1;j<=H.length;j++)
+    dp[i][j] = E[i-1]===H[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j],dp[i][j-1]);
+  const hitH = new Array(H.length).fill(false);
+  let i=E.length, j=H.length;
+  while(i>0&&j>0){
+    if(E[i-1]===H[j-1]){ hitH[j-1]=true; i--;j--; }
+    else if(dp[i-1][j]>=dp[i][j-1]){ i--; }
+    else { j--; }
   }
-  if(a.srErr) return `<span class="miss">– 認識エラー(${a.srErr}) – 録音は再生できます。ネット接続を確認するか、Chromeで開いてください。</span>`;
-  return `<span class="miss">– 認識できませんでした（録音は再生できます）–</span>`;
+
+  /* 生徒の英語（heard）を単語色分きで表示（抜けている語は■で末尾に） */
+  const raw = (a.heard||"").split(/\s+/).filter(Boolean);
+  let k = 0;
+  const colored = raw.map(w=>{
+    const base = w.toLowerCase().replace(/[^a-z']/g,"");
+    const cls = hitH[k] ? "ok" : "ng";
+    k++;
+    return `<span class="${cls}">${esc(w)}</span>`;
+  }).join(" ");
+  /* 抜けている語（模範解答側で未一致のもの）を赤■で追加 */
+  const hitE = new Array(E.length).fill(false);
+  let i2=E.length, j2=H.length;
+  while(i2>0&&j2>0){
+    if(E[i2-1]===H[j2-1]){ hitE[i2-1]=true; i2--;j2--; }
+    else if(dp[i2-1][j2]>=dp[i2][j2-1]){ i2--; }
+    else { j2--; }
+  }
+  const missing = E.filter((w,idx)=>!hitE[idx]);
+  const missingHtml = missing.length ? " " + missing.map(()=>" <span class=\"ng\" style=\"font-size:16px;letter-spacing:2px\">■</span>").join("") : "";
+
+  const fw = (a.ai && a.ai.focus_word) || (missing[0] ?? "");
+  const advRaw = (a.ai && a.ai.feedback)
+    ? esc(a.ai.feedback)
+    : (r.ratio>=80 ? "完璧！その調子"
+      : fw ? `「${fw}」をもう一度`
+      : "もう一回言ってみよう");
+  const adv = fw ? advRaw.replace(esc(fw), `<b style="color:var(--red)">${esc(fw)}</b>`) : advRaw;
+
+  return `<div style="font-family:'DotGothic16';font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:4px">🎙 聞き取れた英語（<span class="ok">緑</span>=正確 / <span class="ng">赤</span>=ズレ / <span class="ng">■</span>=抜けている単語）</div>`
+    + `<div style="font-size:14.5px">${colored}${missingHtml}</div>`
+    + `<div style="margin-top:6px;font-size:12.5px;color:var(--dim)">💡 ${adv}</div>`;
 }
 function updateRow(k, a){
   const box = $("resList");
